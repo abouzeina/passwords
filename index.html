@@ -57,7 +57,7 @@
                     <span class="auth-icon-glow"></span>
                 </div>
                 <h2>SafeVault <sup>PRO</sup></h2>
-                <p id="auth-subtitle">خزنة كلمات مرور سحابية مشفرة بتقنية صفر معرفة (Zero-Knowledge)</p>
+                <p id="auth-subtitle">خزنة كلمات مرور مشفرة بتقنية صفر معرفة (Zero-Knowledge)</p>
             </div>
 
             <!-- Auth Mode Switch Tabs -->
@@ -66,7 +66,7 @@
                     <i class="fa-solid fa-right-to-bracket"></i> تسجيل الدخول
                 </button>
                 <button type="button" class="auth-tab-btn" id="tab-register-btn" onclick="switchAuthMode('register')">
-                    <i class="fa-solid fa-user-plus"></i> إنشاء حساب جديد
+                    <i class="fa-solid fa-user-plus"></i> إنشاء حساب
                 </button>
             </div>
 
@@ -82,12 +82,12 @@
 
                 <div class="input-group">
                     <div class="label-with-action">
-                        <label for="login-password"><i class="fa-solid fa-key"></i> كلمة المرور الرئيسية</label>
+                        <label for="login-password"><i class="fa-solid fa-lock"></i> كلمة المرور</label>
                         <button type="button" class="link-btn-text" onclick="showForgotPasswordView()">نسيت كلمة المرور؟</button>
                     </div>
                     <div class="password-input-wrapper">
                         <i class="fa-solid fa-lock input-prefix-icon"></i>
-                        <input type="password" id="login-password" placeholder="أدخل كلمة المرور الرئيسية..." required autocomplete="current-password">
+                        <input type="password" id="login-password" placeholder="أدخل كلمة المرور..." required autocomplete="current-password">
                         <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('login-password', this)" title="إظهار/إخفاء">
                             <i class="fa-solid fa-eye"></i>
                         </button>
@@ -97,28 +97,17 @@
                 <div id="login-error" class="error-msg hidden"></div>
 
                 <button type="submit" class="btn btn-primary btn-block btn-lg glow-button" id="login-submit-btn">
-                    <i class="fa-solid fa-shield-halved"></i> تسجيل الدخول وفتح الخزنة
+                    <i class="fa-solid fa-shield-halved"></i> تسجيل الدخول
                 </button>
+
+                <div class="auth-footer-link">
+                    <span>ليس لديك حساب؟</span>
+                    <button type="button" class="link-btn-text" onclick="switchAuthMode('register')">إنشاء حساب جديد</button>
+                </div>
             </form>
 
             <!-- Form: Register -->
             <form id="register-form" class="hidden" novalidate onsubmit="handleUserRegister(event)">
-                <div class="input-group">
-                    <label for="reg-fullname"><i class="fa-solid fa-user"></i> الاسم الكامل</label>
-                    <div class="input-with-icon">
-                        <i class="fa-solid fa-user input-prefix-icon"></i>
-                        <input type="text" id="reg-fullname" placeholder="مثال: أحمد محمد" required autocomplete="name">
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="reg-phone"><i class="fa-solid fa-phone"></i> رقم الهاتف</label>
-                    <div class="input-with-icon">
-                        <i class="fa-solid fa-phone input-prefix-icon"></i>
-                        <input type="tel" id="reg-phone" placeholder="مثال: +20 10 1234 5678" required autocomplete="tel">
-                    </div>
-                </div>
-
                 <div class="input-group">
                     <label for="reg-email"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني</label>
                     <div class="input-with-icon">
@@ -128,10 +117,10 @@
                 </div>
 
                 <div class="input-group">
-                    <label for="reg-password"><i class="fa-solid fa-key"></i> كلمة المرور الرئيسية (Master Password)</label>
+                    <label for="reg-password"><i class="fa-solid fa-lock"></i> كلمة المرور</label>
                     <div class="password-input-wrapper">
                         <i class="fa-solid fa-lock input-prefix-icon"></i>
-                        <input type="password" id="reg-password" placeholder="اختر كلمة مرور رئيسية قوية..." required autocomplete="new-password" oninput="checkPasswordStrength(this.value)">
+                        <input type="password" id="reg-password" placeholder="اختر كلمة مرور قوية (8 خانات على الأقل)..." required autocomplete="new-password" oninput="checkPasswordStrength(this.value)">
                         <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('reg-password', this)">
                             <i class="fa-solid fa-eye"></i>
                         </button>
@@ -143,7 +132,7 @@
                 </div>
 
                 <div class="input-group">
-                    <label for="reg-confirm-password"><i class="fa-solid fa-shield-halved"></i> تأكيد كلمة المرور الرئيسية</label>
+                    <label for="reg-confirm-password"><i class="fa-solid fa-check-double"></i> تأكيد كلمة المرور</label>
                     <div class="password-input-wrapper">
                         <i class="fa-solid fa-check-double input-prefix-icon"></i>
                         <input type="password" id="reg-confirm-password" placeholder="أعد إدخال كلمة المرور..." required autocomplete="new-password">
@@ -153,29 +142,30 @@
                     </div>
                 </div>
 
-                <div class="security-warning-note">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span><strong>ملاحظة أمنية:</strong> سنقوم بإنشاء <strong>مفتاح استرداد طوارئ</strong> خاص بك بعد التسجيل لحماية حساباتك في حال نسيت كلمة المرور.</span>
-                </div>
-
                 <div id="register-error" class="error-msg hidden"></div>
 
                 <button type="submit" class="btn btn-accent btn-block btn-lg glow-button-accent" id="register-submit-btn">
-                    <i class="fa-solid fa-user-shield"></i> إنشاء الحساب وتشفير الخزنة
+                    <i class="fa-solid fa-user-plus"></i> إنشاء الحساب
                 </button>
+
+                <div class="auth-footer-link">
+                    <span>لديك حساب بالفعل؟</span>
+                    <button type="button" class="link-btn-text" onclick="switchAuthMode('login')">تسجيل الدخول</button>
+                </div>
             </form>
 
-            <!-- Form: Forgot Password & Recovery -->
+            <!-- Form: Forgot Password & Multi-Step Recovery -->
             <div id="forgot-password-view" class="hidden">
                 <div class="reset-card-header">
                     <button type="button" class="back-to-login-btn" onclick="switchAuthMode('login')">
                         <i class="fa-solid fa-arrow-right"></i> العودة لتسجيل الدخول
                     </button>
-                    <h3><i class="fa-solid fa-envelope-open-text"></i> استعادة كلمة المرور</h3>
-                    <p>أدخل بريدك الإلكتروني لإرسال كود التحقق (OTP) لإعادة تعيين كلمة المرور.</p>
+                    <h3><i class="fa-solid fa-key"></i> استعادة كلمة المرور</h3>
                 </div>
 
-                <form id="forgot-send-form" onsubmit="handleSendResetOtp(event)">
+                <!-- Step 1: Send OTP -->
+                <form id="forgot-step-email" onsubmit="handleSendResetOtp(event)">
+                    <p class="step-desc">أدخل بريدك الإلكتروني لتلقي كود التحقق (OTP):</p>
                     <div class="input-group">
                         <label for="reset-email"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني</label>
                         <div class="input-with-icon">
@@ -184,29 +174,48 @@
                         </div>
                     </div>
 
-                    <div id="reset-send-error" class="error-msg hidden"></div>
+                    <div id="reset-email-error" class="error-msg hidden"></div>
 
                     <button type="submit" class="btn btn-primary btn-block btn-lg" id="send-otp-btn">
-                        <i class="fa-solid fa-paper-plane"></i> إرسال كود التحقق للإيميل
+                        <i class="fa-solid fa-paper-plane"></i> إرسال كود التحقق
                     </button>
                 </form>
 
-                <form id="forgot-verify-form" class="hidden" onsubmit="handleVerifyOtpAndReset(event)">
+                <!-- Step 2: Verify OTP -->
+                <form id="forgot-step-otp" class="hidden" onsubmit="handleVerifyOtp(event)">
                     <div class="success-alert-box">
                         <i class="fa-solid fa-circle-check"></i>
-                        <span>تم إرسال كود التحقق إلى بريدك الإلكتروني! يرجى فحصه وإدخاله بالأسفل.</span>
+                        <span>تم إرسال كود التحقق إلى بريدك الإلكتروني! يرجى إدخاله للمتابعة.</span>
                     </div>
 
                     <div class="input-group">
-                        <label for="reset-otp-token"><i class="fa-solid fa-shield-halved"></i> كود التحقق (OTP / Token)</label>
+                        <label for="reset-otp-token"><i class="fa-solid fa-fingerprint"></i> رمز التحقق (OTP)</label>
                         <div class="input-with-icon">
                             <i class="fa-solid fa-fingerprint input-prefix-icon"></i>
-                            <input type="text" id="reset-otp-token" placeholder="أدخل الكود المكون من 6 أرقام..." required autocomplete="one-time-code">
+                            <input type="text" id="reset-otp-token" placeholder="أدخل الكود المكون من 6 أرقام..." required autocomplete="one-time-code" maxlength="8">
                         </div>
                     </div>
 
+                    <div id="reset-otp-error" class="error-msg hidden"></div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-lg" id="verify-otp-btn">
+                        <i class="fa-solid fa-check"></i> تحقق من الكود
+                    </button>
+
+                    <div class="resend-otp-wrapper">
+                        <button type="button" class="link-btn-text" onclick="handleResendOtp()">إعادة إرسال الرمز؟</button>
+                    </div>
+                </form>
+
+                <!-- Step 3: Set New Password -->
+                <form id="forgot-step-newpwd" class="hidden" onsubmit="handleResetNewPassword(event)">
+                    <div class="info-alert-box">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>تم التحقق من هويتك بنجاح! أدخل كلمة المرور الجديدة الآن.</span>
+                    </div>
+
                     <div class="input-group">
-                        <label for="reset-new-password"><i class="fa-solid fa-key"></i> كلمة المرور الرئيسية الجديدة</label>
+                        <label for="reset-new-password"><i class="fa-solid fa-lock"></i> كلمة المرور الجديدة</label>
                         <div class="password-input-wrapper">
                             <i class="fa-solid fa-lock input-prefix-icon"></i>
                             <input type="password" id="reset-new-password" placeholder="أدخل كلمة المرور الجديدة..." required>
@@ -216,12 +225,35 @@
                         </div>
                     </div>
 
-                    <div id="reset-verify-error" class="error-msg hidden"></div>
+                    <div class="input-group">
+                        <label for="reset-confirm-password"><i class="fa-solid fa-check-double"></i> تأكيد كلمة المرور الجديدة</label>
+                        <div class="password-input-wrapper">
+                            <i class="fa-solid fa-check-double input-prefix-icon"></i>
+                            <input type="password" id="reset-confirm-password" placeholder="أعد إدخال كلمة المرور الجديدة..." required>
+                            <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('reset-confirm-password', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
 
-                    <button type="submit" class="btn btn-accent btn-block btn-lg" id="verify-reset-btn">
-                        <i class="fa-solid fa-check-double"></i> تأكيد وتعيين كلمة المرور الجديدة
+                    <div id="reset-newpwd-error" class="error-msg hidden"></div>
+
+                    <button type="submit" class="btn btn-accent btn-block btn-lg" id="change-pwd-btn">
+                        <i class="fa-solid fa-key"></i> تغيير كلمة المرور
                     </button>
                 </form>
+
+                <!-- Step 4: Success Message -->
+                <div id="forgot-step-success" class="hidden text-center">
+                    <div class="success-icon-big">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <h4>تم تغيير كلمة المرور بنجاح!</h4>
+                    <p class="text-muted">يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة والوصول إلى خزنتك القديمة بأمان تام.</p>
+                    <button type="button" class="btn btn-primary btn-block btn-lg" onclick="switchAuthMode('login')">
+                        <i class="fa-solid fa-right-to-bracket"></i> الانتقال لتسجيل الدخول
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -241,7 +273,7 @@
                     <span>SafeVault <sup>PRO</sup></span>
                 </div>
 
-                <!-- User Active Profile Badge (Clickable to open profile) -->
+                <!-- User Active Profile Badge -->
                 <button type="button" class="user-active-badge" id="user-active-badge" onclick="openProfileModal()" title="عرض وتعديل الملف الشخصي">
                     <div class="user-avatar-mini" id="header-avatar">أ</div>
                     <div class="user-info-mini">
@@ -276,7 +308,11 @@
                     </label>
                 </div>
 
-                <button class="btn btn-danger btn-sm" onclick="handleUserLogout()" title="تسجيل الخروج وقفل الخزنة المشفرة">
+                <button class="btn btn-warning btn-sm" onclick="handleLockVault()" title="قفل الخزنة مؤقتاً">
+                    <i class="fa-solid fa-lock"></i> <span class="hide-mobile">قفل</span>
+                </button>
+
+                <button class="btn btn-danger btn-sm" onclick="handleUserLogout()" title="تسجيل الخروج">
                     <i class="fa-solid fa-right-from-bracket"></i> <span class="hide-mobile">خروج</span>
                 </button>
             </div>

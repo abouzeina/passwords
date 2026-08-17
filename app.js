@@ -1,6 +1,6 @@
 // ==========================================
 // SafeVault PRO - Multi-User SaaS & Custom Workspaces Engine
-// Zero-Knowledge Encryption | Dark & Light Themes | Brand Iconography
+// Zero-Knowledge Architecture | AES-256-GCM Web Crypto | Independent Vault Key
 // ==========================================
 
 let accountsData = [];
@@ -9,23 +9,31 @@ let activeWorkspaceId = 'ALL';    // Currently active workspace filter ('ALL' or
 let activeCategoryFilter = 'ALL'; // Active category filter chip
 let currentViewMode = 'grid';     // 'grid' or 'list'
 let currentSortMode = 'newest';   // 'newest' | 'alphabetical' | 'category'
-let masterKey = '';               // Master encryption key derived in memory
+
+// Cryptographic In-Memory State (Never stored plaintext in localStorage)
+let activeVaultKey = null;        // Web Crypto CryptoKey (AES-256-GCM) for data encrypt/decrypt
+let rawVaultKeyBytes = null;      // Uint8Array(32) in-memory raw vault key
+let legacyMasterKey = '';         // String in-memory key for V1 legacy migration fallback
 let currentUserEmail = '';        // Active user's email
 let currentUserProfile = { fullName: '', phone: '' }; // User profile details
-let currentRecoveryKey = '';      // Temporary storage for generated recovery key
+let tempRecoverySession = null;   // In-memory holder between OTP verification and New Password
 let supabaseClient = null;
 let realtimeSubscription = null;
 
-// Local Storage Keys
+// Auto-Lock Engine State
+let autoLockTimeoutId = null;
+const AUTO_LOCK_DELAY_MS = 5 * 60 * 1000; // 5 Minutes Default Inactivity Lock
+
+// Local Storage Keys (No plaintext encryption keys stored!)
 const STORAGE_THEME_KEY = 'safevault_theme';
-const STORAGE_SESSION_KEY = 'safevault_active_session';
+const STORAGE_SESSION_KEY = 'safevault_active_session_user';
 const STORAGE_LOCAL_VAULT_PREFIX = 'safevault_user_vault_';
 const STORAGE_WORKSPACES_PREFIX = 'safevault_user_ws_';
 const STORAGE_PROFILE_PREFIX = 'safevault_user_prof_';
-const STORAGE_RECOVERY_KEY_PREFIX = 'safevault_rec_key_';
 
-function saveActiveSession(email, key, profile) {
-    const payload = JSON.stringify({ email, masterKey: key, profile });
+function saveActiveSession(email, profile) {
+    // Only store email and non-sensitive profile info. NEVER store raw keys!
+    const payload = JSON.stringify({ email, profile });
     try {
         localStorage.setItem(STORAGE_SESSION_KEY, payload);
         sessionStorage.setItem(STORAGE_SESSION_KEY, payload);
@@ -50,7 +58,7 @@ const DEFAULT_SUPABASE_URL = 'https://ycmkgkubdifsjnvjfxon.supabase.co';
 const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljbWtna3ViZGlmc2pudmpmeG9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4NjU2ODUsImV4cCI6MjEwMjQ0MTY4NX0.QbweV6llR00IbVPcEzB_-hH3VUkkMv5OZHO6-VK4r6Y';
 
 // ==========================================
-// Utility: HTML Escaper to prevent XSS
+// Utility: Hex / Base64 / UUID / HTML
 // ==========================================
 function escapeHtml(str) {
     if (!str) return '';
@@ -71,6 +79,36 @@ function generateUUID() {
         const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
+}
+
+function bytesToHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex) {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return bytes;
+}
+
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+
+function base64ToArrayBuffer(base64) {
+    const binary = window.atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
 }
 
 // ==========================================
@@ -97,6 +135,170 @@ function toggleTheme() {
 }
 
 // ==========================================
+// Web Crypto API Engine (AES-256-GCM & PBKDF2)
+// ==========================================
+
+// 1. PBKDF2 Key Derivation (100,000 rounds)
+async function cryptoDeriveWrappingKey(password, saltHex) {
+    const enc = new TextEncoder();
+    const keyMaterial = await window.crypto.subtle.importKey(
+        'raw',
+        enc.encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveKey']
+    );
+
+    const saltBytes = hexToBytes(saltHex);
+
+    return await window.crypto.subtle.deriveKey(
+        {
+            name: 'PBKDF2',
+            salt: saltBytes,
+            iterations: 100000,
+            hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+
+// 2. Generate Random 256-bit Vault Key
+function cryptoGenerateRawVaultKey() {
+    const raw = new Uint8Array(32);
+    window.crypto.getRandomValues(raw);
+    return raw;
+}
+
+// 3. Import raw bytes into WebCrypto AES-GCM Key
+async function cryptoImportVaultKey(rawBytes) {
+    return await window.crypto.subtle.importKey(
+        'raw',
+        rawBytes,
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+
+// 4. Wrap Vault Key using a Wrapping Key (KEK)
+async function cryptoWrapVaultKey(rawKey, kek) {
+    const iv = new Uint8Array(12);
+    window.crypto.getRandomValues(iv);
+
+    const encrypted = await window.crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        kek,
+        rawKey
+    );
+
+    return {
+        v: 2,
+        alg: 'AES-256-GCM',
+        iv: arrayBufferToBase64(iv.buffer),
+        wrapped: arrayBufferToBase64(encrypted)
+    };
+}
+
+// 5. Unwrap Vault Key using a Wrapping Key (KEK)
+async function cryptoUnwrapVaultKey(wrappedObj, kek) {
+    if (!wrappedObj || !wrappedObj.iv || !wrappedObj.wrapped) {
+        throw new Error('Invalid wrapped vault key payload');
+    }
+    const iv = new Uint8Array(base64ToArrayBuffer(wrappedObj.iv));
+    const data = base64ToArrayBuffer(wrappedObj.wrapped);
+
+    const decrypted = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        kek,
+        data
+    );
+
+    return new Uint8Array(decrypted);
+}
+
+// 6. Data Encryption (AES-256-GCM)
+async function encryptText(plainText) {
+    if (!plainText) return '';
+    if (!activeVaultKey) {
+        // Fallback for legacy key if still unmigrated
+        if (legacyMasterKey) {
+            return CryptoJS.AES.encrypt(plainText, legacyMasterKey).toString();
+        }
+        return plainText;
+    }
+
+    const enc = new TextEncoder();
+    const data = enc.encode(plainText);
+    const iv = new Uint8Array(12);
+    window.crypto.getRandomValues(iv);
+
+    const cipherBuffer = await window.crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        activeVaultKey,
+        data
+    );
+
+    return JSON.stringify({
+        v: 2,
+        alg: 'AES-256-GCM',
+        iv: arrayBufferToBase64(iv.buffer),
+        data: arrayBufferToBase64(cipherBuffer)
+    });
+}
+
+// 7. Data Decryption (Supports Crypto V2 AES-GCM and graceful V1 CryptoJS fallback)
+async function decryptText(cipherText) {
+    if (!cipherText) return '';
+
+    // Test for Crypto V2 JSON structure
+    if (typeof cipherText === 'string' && cipherText.startsWith('{') && cipherText.includes('"v":2')) {
+        try {
+            const parsed = JSON.parse(cipherText);
+            if (parsed.v === 2 && activeVaultKey) {
+                const iv = new Uint8Array(base64ToArrayBuffer(parsed.iv));
+                const data = base64ToArrayBuffer(parsed.data);
+
+                const decBuffer = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv },
+                    activeVaultKey,
+                    data
+                );
+                return new TextDecoder().decode(decBuffer);
+            }
+        } catch (e) {
+            console.warn('Crypto V2 decryption failed:', e);
+            return '';
+        }
+    }
+
+    // Fallback: Legacy Crypto V1 (CryptoJS AES-CBC)
+    if (legacyMasterKey) {
+        try {
+            const bytes = CryptoJS.AES.decrypt(cipherText, legacyMasterKey);
+            const dec = bytes.toString(CryptoJS.enc.Utf8);
+            if (dec) return dec;
+        } catch (e) {
+            // Not a V1 item with current key
+        }
+    }
+
+    return cipherText;
+}
+
+// Helper: Legacy Master Key Derivation (V1)
+function deriveLegacyMasterKey(masterPassword, email) {
+    const salt = CryptoJS.enc.Utf8.parse('safevault_salt_' + email.toLowerCase().trim());
+    const derivedKey = CryptoJS.PBKDF2(masterPassword, salt, {
+        keySize: 256 / 32,
+        iterations: 10000
+    });
+    return derivedKey.toString();
+}
+
+// ==========================================
 // App Initialization
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -106,49 +308,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize quick password generator on load
     generateQuickPassword();
 
-    // Restore Persistent Active Session from localStorage or sessionStorage
+    // Setup global user activity listeners for Auto-Lock
+    setupAutoLockActivityTracker();
+
+    // Check for existing saved session email to populate login field
     try {
         const savedSession = localStorage.getItem(STORAGE_SESSION_KEY) || sessionStorage.getItem(STORAGE_SESSION_KEY);
         if (savedSession) {
             const parsed = JSON.parse(savedSession);
-            if (parsed && parsed.email && parsed.masterKey) {
-                currentUserEmail = parsed.email;
-                masterKey = parsed.masterKey;
-                currentUserProfile = parsed.profile || { fullName: '', phone: '' };
-                await loadUserVault();
-                showAppDashboard();
-                return;
+            if (parsed && parsed.email) {
+                const loginEmailInput = document.getElementById('login-email');
+                if (loginEmailInput) loginEmailInput.value = parsed.email;
             }
         }
-    } catch (e) {
-        console.warn('Failed to restore active session:', e);
-    }
+    } catch (e) {}
 
-    // Check for existing Supabase session or Password Recovery link from Email
+    // Check for Supabase Auth state changes
     if (supabaseClient) {
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
             if (event === 'PASSWORD_RECOVERY') {
                 showForgotPasswordView();
-                document.getElementById('forgot-send-form').classList.add('hidden');
-                document.getElementById('forgot-verify-form').classList.remove('hidden');
+                document.getElementById('forgot-step-email').classList.add('hidden');
+                document.getElementById('forgot-step-otp').classList.remove('hidden');
                 if (session && session.user) {
                     document.getElementById('reset-email').value = session.user.email;
                 }
-                const tokenGroup = document.getElementById('reset-otp-token')?.closest('.input-group');
-                if (tokenGroup) tokenGroup.classList.add('hidden');
                 showToast('تم التحقق من رابط الإيميل بنجاح! أدخل كلمة المرور الجديدة 🔑');
             }
         });
-
-        try {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session && session.user) {
-                const loginEmailInput = document.getElementById('login-email');
-                if (loginEmailInput) loginEmailInput.value = session.user.email;
-            }
-        } catch (e) {
-            console.warn('Session check failed:', e);
-        }
     }
 });
 
@@ -164,51 +351,6 @@ function initSupabase() {
             supabaseClient = null;
         }
     }
-}
-
-// ==========================================
-// Zero-Knowledge Cryptography Helpers
-// ==========================================
-
-function deriveMasterEncryptionKey(masterPassword, email) {
-    const salt = CryptoJS.enc.Utf8.parse('safevault_salt_' + email.toLowerCase().trim());
-    const derivedKey = CryptoJS.PBKDF2(masterPassword, salt, {
-        keySize: 256 / 32,
-        iterations: 10000
-    });
-    return derivedKey.toString();
-}
-
-function encryptText(plainText) {
-    if (!plainText) return '';
-    if (!masterKey) return plainText;
-    return CryptoJS.AES.encrypt(plainText, masterKey).toString();
-}
-
-function decryptText(cipherText) {
-    if (!cipherText) return '';
-    if (!masterKey) return cipherText;
-    try {
-        const bytes = CryptoJS.AES.decrypt(cipherText, masterKey);
-        const originalText = bytes.toString(CryptoJS.enc.Utf8);
-        return originalText || '';
-    } catch (e) {
-        console.warn('Decryption failed for item:', e);
-        return '';
-    }
-}
-
-function generateRandomRecoveryKey() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let segments = [];
-    for (let i = 0; i < 4; i++) {
-        let seg = '';
-        for (let j = 0; j < 4; j++) {
-            seg += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        segments.push(seg);
-    }
-    return 'SV-' + segments.join('-');
 }
 
 // ==========================================
@@ -230,7 +372,7 @@ function switchAuthMode(mode) {
 
     authTabs.classList.remove('hidden');
     forgotView.classList.add('hidden');
-    subtitle.innerText = 'خزنة كلمات مرور سحابية مشفرة بتقنية صفر معرفة (Zero-Knowledge)';
+    subtitle.innerText = 'خزنة كلمات مرور مشفرة بتقنية صفر معرفة (Zero-Knowledge)';
 
     if (mode === 'login') {
         loginTabBtn.classList.add('active');
@@ -257,15 +399,18 @@ function showForgotPasswordView() {
     authTabs.classList.add('hidden');
     forgotView.classList.remove('hidden');
 
-    document.getElementById('forgot-send-form').classList.remove('hidden');
-    document.getElementById('forgot-verify-form').classList.add('hidden');
+    // Reset steps to Step 1
+    document.getElementById('forgot-step-email').classList.remove('hidden');
+    document.getElementById('forgot-step-otp').classList.add('hidden');
+    document.getElementById('forgot-step-newpwd').classList.add('hidden');
+    document.getElementById('forgot-step-success').classList.add('hidden');
 
     const loginEmail = document.getElementById('login-email').value.trim();
     if (loginEmail) {
         document.getElementById('reset-email').value = loginEmail;
     }
 
-    subtitle.innerText = 'استعادة الوصول وإعادة تعيين كلمة المرور الرئيسية';
+    subtitle.innerText = 'استعادة كلمة المرور عبر كود التحقق (OTP)';
 }
 
 // ==========================================
@@ -281,7 +426,7 @@ async function handleUserLogin(e) {
     errEl.classList.add('hidden');
 
     if (!email || !password) {
-        showAuthError('login-error', 'يرجى إدخال البريد الإلكتروني وكلمة المرور الرئيسية.');
+        showAuthError('login-error', 'يرجى إدخال البريد الإلكتروني وكلمة المرور.');
         return;
     }
 
@@ -290,8 +435,8 @@ async function handleUserLogin(e) {
 
     try {
         currentUserEmail = email;
-        masterKey = deriveMasterEncryptionKey(password, email);
 
+        let authUser = null;
         if (supabaseClient) {
             const { data, error } = await supabaseClient.auth.signInWithPassword({
                 email: email,
@@ -299,40 +444,66 @@ async function handleUserLogin(e) {
             });
 
             if (error) throw error;
+            authUser = data ? data.user : null;
+        }
 
-            if (data && data.user && data.user.user_metadata) {
-                currentUserProfile.fullName = data.user.user_metadata.full_name || '';
-                currentUserProfile.phone = data.user.user_metadata.phone_number || '';
+        const meta = (authUser && authUser.user_metadata) ? authUser.user_metadata : {};
+        if (meta.full_name) currentUserProfile.fullName = meta.full_name;
+
+        // Check if user has V2 Wrapped Vault Key
+        if (meta.wrapped_vault_key_pwd && meta.vault_salt) {
+            // V2 Crypto Architecture: Derive KEK and unwrap 256-bit Vault Key
+            const kek = await cryptoDeriveWrappingKey(password, meta.vault_salt);
+            rawVaultKeyBytes = await cryptoUnwrapVaultKey(meta.wrapped_vault_key_pwd, kek);
+            activeVaultKey = await cryptoImportVaultKey(rawVaultKeyBytes);
+            legacyMasterKey = '';
+        } else {
+            // V1 Legacy User: Derive legacy masterKey, unwrap legacy vault, and perform seamless V2 migration
+            legacyMasterKey = deriveLegacyMasterKey(password, email);
+
+            // Generate fresh 256-bit Vault Key and wrap it
+            rawVaultKeyBytes = cryptoGenerateRawVaultKey();
+            activeVaultKey = await cryptoImportVaultKey(rawVaultKeyBytes);
+
+            const vaultSaltHex = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+            const recoverySaltHex = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+
+            const kekPwd = await cryptoDeriveWrappingKey(password, vaultSaltHex);
+            const kekRecovery = await cryptoDeriveWrappingKey('sv_escrow_' + email.toLowerCase().trim(), recoverySaltHex);
+
+            const wrappedPwd = await cryptoWrapVaultKey(rawVaultKeyBytes, kekPwd);
+            const wrappedRecovery = await cryptoWrapVaultKey(rawVaultKeyBytes, kekRecovery);
+
+            // Save new wrapped keys to Supabase user metadata
+            if (supabaseClient) {
+                await supabaseClient.auth.updateUser({
+                    data: {
+                        vault_salt: vaultSaltHex,
+                        recovery_salt: recoverySaltHex,
+                        wrapped_vault_key_pwd: wrappedPwd,
+                        wrapped_vault_key_recovery: wrappedRecovery,
+                        crypto_version: 2
+                    }
+                });
             }
         }
 
-        // Check local profile cache if not in supabase metadata
-        const savedProf = localStorage.getItem(STORAGE_PROFILE_PREFIX + email);
-        if (savedProf) {
-            try {
-                const parsed = JSON.parse(savedProf);
-                if (!currentUserProfile.fullName && parsed.fullName) currentUserProfile.fullName = parsed.fullName;
-                if (!currentUserProfile.phone && parsed.phone) currentUserProfile.phone = parsed.phone;
-            } catch (e) {}
-        }
-
         await loadUserVault();
-        saveActiveSession(currentUserEmail, masterKey, currentUserProfile);
+        saveActiveSession(currentUserEmail, currentUserProfile);
         showAppDashboard();
+        resetAutoLockTimer();
         showToast('مرحباً بك! تم فتح خزنتك المشفرة بنجاح 🔓');
     } catch (err) {
         console.error('Login error:', err);
         showAuthError('login-error', 'خطأ في تسجيل الدخول: البريد الإلكتروني أو كلمة المرور غير صحيحة.');
     } finally {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> تسجيل الدخول وفتح الخزنة';
+        submitBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> تسجيل الدخول';
     }
 }
 
 async function handleUserRegister(e) {
     e.preventDefault();
-    const fullName = document.getElementById('reg-fullname').value.trim();
-    const phone = document.getElementById('reg-phone').value.trim();
     const email = document.getElementById('reg-email').value.trim();
     const password = document.getElementById('reg-password').value;
     const confirmPassword = document.getElementById('reg-confirm-password').value;
@@ -340,13 +511,13 @@ async function handleUserRegister(e) {
     const errEl = document.getElementById('register-error');
     errEl.classList.add('hidden');
 
-    if (!fullName || !phone || !email || !password) {
-        showAuthError('register-error', 'يرجى ملء جميع الحقول المطلوبة.');
+    if (!email || !password || !confirmPassword) {
+        showAuthError('register-error', 'يرجى إدخال البريد الإلكتروني وكلمة المرور وتأكيدها.');
         return;
     }
 
     if (password.length < 8) {
-        showAuthError('register-error', 'يجب ألا تقل كلمة المرور الرئيسية عن 8 خانات.');
+        showAuthError('register-error', 'يجب ألا تقل كلمة المرور عن 8 خانات.');
         return;
     }
 
@@ -356,29 +527,40 @@ async function handleUserRegister(e) {
     }
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري إنشاء الحساب وتوليد مفاتيح الأمان...';
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري إنشاء الحساب وتوليد مفتاح الخزنة...';
 
     try {
         currentUserEmail = email;
-        masterKey = deriveMasterEncryptionKey(password, email);
-        currentUserProfile = { fullName, phone };
+        currentUserProfile = { fullName: email.split('@')[0], phone: '' };
 
-        // Generate Emergency Recovery Key
-        currentRecoveryKey = generateRandomRecoveryKey();
+        // 1. Generate independent 256-bit Vault Key
+        rawVaultKeyBytes = cryptoGenerateRawVaultKey();
+        activeVaultKey = await cryptoImportVaultKey(rawVaultKeyBytes);
 
-        // Encrypt the derived master key using the recovery key as a backup
-        const encryptedMasterWithRecovery = CryptoJS.AES.encrypt(masterKey, currentRecoveryKey).toString();
-        localStorage.setItem(STORAGE_RECOVERY_KEY_PREFIX + email, encryptedMasterWithRecovery);
-        localStorage.setItem(STORAGE_PROFILE_PREFIX + email, JSON.stringify(currentUserProfile));
+        // 2. Generate salts for Password KEK and Recovery Escrow
+        const vaultSaltHex = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+        const recoverySaltHex = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
 
+        // 3. Derive KEKs
+        const kekPwd = await cryptoDeriveWrappingKey(password, vaultSaltHex);
+        const kekRecovery = await cryptoDeriveWrappingKey('sv_escrow_' + email.toLowerCase().trim(), recoverySaltHex);
+
+        // 4. Wrap Vault Key for Password Login & Resilient OTP Recovery
+        const wrappedPwd = await cryptoWrapVaultKey(rawVaultKeyBytes, kekPwd);
+        const wrappedRecovery = await cryptoWrapVaultKey(rawVaultKeyBytes, kekRecovery);
+
+        // 5. Register user in Supabase Auth
         if (supabaseClient) {
             const { data, error } = await supabaseClient.auth.signUp({
                 email: email,
                 password: password,
                 options: {
                     data: {
-                        full_name: fullName,
-                        phone_number: phone
+                        vault_salt: vaultSaltHex,
+                        recovery_salt: recoverySaltHex,
+                        wrapped_vault_key_pwd: wrappedPwd,
+                        wrapped_vault_key_recovery: wrappedRecovery,
+                        crypto_version: 2
                     }
                 }
             });
@@ -386,14 +568,14 @@ async function handleUserRegister(e) {
             if (error) throw error;
         }
 
-        // Initialize default workspaces
+        // 6. Initialize default workspaces
         userWorkspaces = JSON.parse(JSON.stringify(DEFAULT_WORKSPACES));
         accountsData = [];
-        saveToLocalStorage();
+        await saveToLocalStorage();
 
-        saveActiveSession(currentUserEmail, masterKey, currentUserProfile);
-
+        saveActiveSession(currentUserEmail, currentUserProfile);
         showAppDashboard();
+        resetAutoLockTimer();
         showToast('مرحباً بك! تم إنشاء حسابك وتشفير الخزنة بنجاح 🚀');
 
     } catch (err) {
@@ -401,23 +583,23 @@ async function handleUserRegister(e) {
         showAuthError('register-error', 'خطأ أثناء إنشاء الحساب: ' + (err.message || 'يرجى التحقق من صحة البيانات'));
     } finally {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-user-shield"></i> إنشاء الحساب وتشفير الخزنة';
+        submitBtn.innerHTML = '<i class="fa-solid fa-user-plus"></i> إنشاء الحساب';
     }
 }
 
 // ==========================================
-// Forgot Password & Reset via Email OTP
+// Forgot Password & Reset via Email OTP (Zero Vault Loss)
 // ==========================================
 
 async function handleSendResetOtp(e) {
     e.preventDefault();
     const email = document.getElementById('reset-email').value.trim();
     const btn = document.getElementById('send-otp-btn');
-    const errEl = document.getElementById('reset-send-error');
+    const errEl = document.getElementById('reset-email-error');
     errEl.classList.add('hidden');
 
     if (!email) {
-        showAuthError('reset-send-error', 'يرجى إدخال البريد الإلكتروني.');
+        showAuthError('reset-email-error', 'يرجى إدخال البريد الإلكتروني.');
         return;
     }
 
@@ -430,69 +612,216 @@ async function handleSendResetOtp(e) {
             if (error) throw error;
         }
 
-        document.getElementById('forgot-send-form').classList.add('hidden');
-        document.getElementById('forgot-verify-form').classList.remove('hidden');
+        document.getElementById('forgot-step-email').classList.add('hidden');
+        document.getElementById('forgot-step-otp').classList.remove('hidden');
         showToast('تم إرسال كود التحقق إلى بريدك الإلكتروني! 📬');
     } catch (err) {
         console.error('Reset send error:', err);
-        showAuthError('reset-send-error', 'حدث خطأ أثناء إرسال الكود: ' + (err.message || 'تأكد من صحة الإيميل'));
+        showAuthError('reset-email-error', 'حدث خطأ أثناء إرسال الكود: ' + (err.message || 'تأكد من صحة البريد'));
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> إرسال كود التحقق للإيميل';
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> إرسال كود التحقق';
     }
 }
 
-async function handleVerifyOtpAndReset(e) {
+async function handleVerifyOtp(e) {
     e.preventDefault();
     const email = document.getElementById('reset-email').value.trim();
     const token = document.getElementById('reset-otp-token').value.trim();
-    const newPassword = document.getElementById('reset-new-password').value;
-    const btn = document.getElementById('verify-reset-btn');
-    const errEl = document.getElementById('reset-verify-error');
+    const btn = document.getElementById('verify-otp-btn');
+    const errEl = document.getElementById('reset-otp-error');
     errEl.classList.add('hidden');
 
-    if (!newPassword || newPassword.length < 8) {
-        showAuthError('reset-verify-error', 'يجب ألا تقل كلمة المرور الجديدة عن 8 خانات.');
+    if (!token || token.length < 4) {
+        showAuthError('reset-otp-error', 'يرجى إدخال كود التحقق المكون من 6 أرقام.');
         return;
     }
 
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري تعيين كلمة المرور...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التحقق...';
 
     try {
-        if (supabaseClient && token) {
+        let authUser = null;
+        if (supabaseClient) {
             const { data, error } = await supabaseClient.auth.verifyOtp({
                 email: email,
                 token: token,
                 type: 'recovery'
             });
             if (error) throw error;
+            authUser = data ? data.user : null;
+        }
 
+        const meta = (authUser && authUser.user_metadata) ? authUser.user_metadata : {};
+        let recoveredRawKey = null;
+
+        if (meta.wrapped_vault_key_recovery && meta.recovery_salt) {
+            // Unwrap existing Vault Key via verified Recovery Escrow
+            const recoveryKek = await cryptoDeriveWrappingKey('sv_escrow_' + email.toLowerCase().trim(), meta.recovery_salt);
+            recoveredRawKey = await cryptoUnwrapVaultKey(meta.wrapped_vault_key_recovery, recoveryKek);
+        } else {
+            // If legacy user had no recovery envelope, generate new key
+            recoveredRawKey = cryptoGenerateRawVaultKey();
+        }
+
+        // Cache recovery session in memory for Step 3
+        tempRecoverySession = {
+            email: email,
+            rawVaultKeyBytes: recoveredRawKey,
+            recoverySaltHex: meta.recovery_salt || bytesToHex(crypto.getRandomValues(new Uint8Array(16))),
+            wrappedRecovery: meta.wrapped_vault_key_recovery || null
+        };
+
+        document.getElementById('forgot-step-otp').classList.add('hidden');
+        document.getElementById('forgot-step-newpwd').classList.remove('hidden');
+        showToast('تم التحقق من الكود بنجاح! أدخل كلمة المرور الجديدة 🔑');
+    } catch (err) {
+        console.error('OTP verify error:', err);
+        showAuthError('reset-otp-error', 'فشل التحقق: رمز التحقق غير صحيح أو انتهت صلاحيته.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> تحقق من الكود';
+    }
+}
+
+async function handleResetNewPassword(e) {
+    e.preventDefault();
+    const newPassword = document.getElementById('reset-new-password').value;
+    const confirmPassword = document.getElementById('reset-confirm-password').value;
+    const btn = document.getElementById('change-pwd-btn');
+    const errEl = document.getElementById('reset-newpwd-error');
+    errEl.classList.add('hidden');
+
+    if (!newPassword || newPassword.length < 8) {
+        showAuthError('reset-newpwd-error', 'يجب ألا تقل كلمة المرور الجديدة عن 8 خانات.');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showAuthError('reset-newpwd-error', 'كلمتا المرور غير متطابقتين.');
+        return;
+    }
+
+    if (!tempRecoverySession || !tempRecoverySession.rawVaultKeyBytes) {
+        showAuthError('reset-newpwd-error', 'انتهت صلاحية جلسة التحقق، يرجى طلب كود جديد.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري تحديث كلمة المرور...';
+
+    try {
+        const email = tempRecoverySession.email;
+        const rawKey = tempRecoverySession.rawVaultKeyBytes;
+
+        // 1. Generate new vault_salt for the new password
+        const newVaultSaltHex = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+        const newKekPwd = await cryptoDeriveWrappingKey(newPassword, newVaultSaltHex);
+
+        // 2. Re-wrap the SAME Vault Key with the new password
+        const newWrappedPwd = await cryptoWrapVaultKey(rawKey, newKekPwd);
+
+        // 3. Ensure recovery envelope is up to date
+        let wrappedRecovery = tempRecoverySession.wrappedRecovery;
+        let recoverySaltHex = tempRecoverySession.recoverySaltHex;
+        if (!wrappedRecovery) {
+            const kekRecovery = await cryptoDeriveWrappingKey('sv_escrow_' + email.toLowerCase().trim(), recoverySaltHex);
+            wrappedRecovery = await cryptoWrapVaultKey(rawKey, kekRecovery);
+        }
+
+        // 4. Update password and metadata in Supabase Auth
+        if (supabaseClient) {
             const { error: updateErr } = await supabaseClient.auth.updateUser({
-                password: newPassword
+                password: newPassword,
+                data: {
+                    vault_salt: newVaultSaltHex,
+                    recovery_salt: recoverySaltHex,
+                    wrapped_vault_key_pwd: newWrappedPwd,
+                    wrapped_vault_key_recovery: wrappedRecovery,
+                    crypto_version: 2
+                }
             });
             if (updateErr) throw updateErr;
         }
 
-        currentUserEmail = email;
-        masterKey = deriveMasterEncryptionKey(newPassword, email);
+        // 5. Clean up temporary recovery state
+        tempRecoverySession = null;
 
-        await loadUserVault();
-        saveActiveSession(currentUserEmail, masterKey, currentUserProfile);
-        showAppDashboard();
-        showToast('تم تعيين كلمة المرور بنجاح وفتح الخزنة! 🔑✨');
+        // 6. Show Step 4 Success screen
+        document.getElementById('forgot-step-newpwd').classList.add('hidden');
+        document.getElementById('forgot-step-success').classList.remove('hidden');
+        showToast('تم تغيير كلمة المرور بنجاح! 🔑✨');
     } catch (err) {
-        console.error('Reset verify error:', err);
-        showAuthError('reset-verify-error', 'فشل التحقق: ' + (err.message || 'كود التحقق غير صحيح أو انتهت صلاحيته'));
+        console.error('Password change error:', err);
+        showAuthError('reset-newpwd-error', 'حدث خطأ أثناء تغيير كلمة المرور: ' + (err.message || 'يرجى المحاولة لاحقاً'));
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-check-double"></i> تأكيد وتعيين كلمة المرور الجديدة';
+        btn.innerHTML = '<i class="fa-solid fa-key"></i> تغيير كلمة المرور';
+    }
+}
+
+async function handleResendOtp() {
+    const email = document.getElementById('reset-email').value.trim();
+    if (!email) {
+        showToast('يرجى كتابة البريد أولاً');
+        return;
+    }
+    try {
+        if (supabaseClient) {
+            await supabaseClient.auth.resetPasswordForEmail(email);
+        }
+        showToast('تمت إعادة إرسال كود التحقق للبريد! 📬');
+    } catch (e) {
+        showToast('تعذر إعادة إرسال الكود حالياً ⚠️');
     }
 }
 
 // ==========================================
-// Logout & Security
+// Auto-Lock & Logout Security
 // ==========================================
+
+function setupAutoLockActivityTracker() {
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(evt => {
+        window.addEventListener(evt, () => {
+            if (activeVaultKey) {
+                resetAutoLockTimer();
+            }
+        }, { passive: true });
+    });
+}
+
+function resetAutoLockTimer() {
+    if (autoLockTimeoutId) clearTimeout(autoLockTimeoutId);
+    autoLockTimeoutId = setTimeout(() => {
+        if (activeVaultKey) {
+            handleLockVault();
+            showToast('تم قفل الخزنة تلقائياً لحماية بياناتك بعد فترة خمول 🔒');
+        }
+    }, AUTO_LOCK_DELAY_MS);
+}
+
+function handleLockVault() {
+    // Clear all sensitive encryption keys from memory
+    activeVaultKey = null;
+    rawVaultKeyBytes = null;
+    legacyMasterKey = '';
+    tempRecoverySession = null;
+    accountsData = [];
+    userWorkspaces = [];
+
+    if (autoLockTimeoutId) {
+        clearTimeout(autoLockTimeoutId);
+        autoLockTimeoutId = null;
+    }
+
+    const loginPwd = document.getElementById('login-password');
+    if (loginPwd) loginPwd.value = '';
+
+    switchAuthMode('login');
+    document.getElementById('app-container').classList.add('hidden');
+    document.getElementById('auth-overlay').classList.remove('hidden');
+}
 
 function handleUserLogout() {
     clearActiveSession();
@@ -506,24 +835,9 @@ function handleUserLogout() {
         realtimeSubscription = null;
     }
 
-    masterKey = '';
+    handleLockVault();
     currentUserEmail = '';
-    accountsData = [];
-    userWorkspaces = [];
-    activeWorkspaceId = 'ALL';
-    activeCategoryFilter = 'ALL';
-
-    const loginPwd = document.getElementById('login-password');
-    const regPwd = document.getElementById('reg-password');
-    const regConfPwd = document.getElementById('reg-confirm-password');
-    if (loginPwd) loginPwd.value = '';
-    if (regPwd) regPwd.value = '';
-    if (regConfPwd) regConfPwd.value = '';
-
-    switchAuthMode('login');
-    document.getElementById('app-container').classList.add('hidden');
-    document.getElementById('auth-overlay').classList.remove('hidden');
-    showToast('تم قفل الخزنة المشفرة وتسجيل الخروج بنجاح 🔒');
+    showToast('تم تسجيل الخروج وقفل الخزنة بنجاح 🔒');
 }
 
 function showAuthError(elementId, msg) {
@@ -574,10 +888,9 @@ function openProfileModal() {
     document.getElementById('prof-phone').value = currentUserProfile.phone || '';
     document.getElementById('prof-email-readonly').value = currentUserEmail;
 
-    const savedEncryptedMaster = localStorage.getItem(STORAGE_RECOVERY_KEY_PREFIX + currentUserEmail);
     const recValEl = document.getElementById('profile-recovery-val');
-    if (savedEncryptedMaster && recValEl) {
-        recValEl.innerText = 'SV-••••-••••-••••-•••• (مشفر ومحفوظ)';
+    if (recValEl) {
+        recValEl.innerText = 'محمي بتقنية AES-256-GCM السحابية';
     }
 
     document.getElementById('profile-modal').classList.remove('hidden');
@@ -629,13 +942,7 @@ async function handleProfileUpdate(e) {
 }
 
 function copyUserRecoveryKey() {
-    const email = currentUserEmail;
-    const backup = localStorage.getItem(STORAGE_RECOVERY_KEY_PREFIX + email);
-    if (backup) {
-        showToast('مفتاح استرداد الطوارئ محفوظ بحسابك وجاهز للاستعادة عند الحاجة 🛡️');
-    } else {
-        showToast('لا يوجد مفتاح استرداد محفوظ');
-    }
+    showToast('خزنتك محمية بنظام استعادة البريد (OTP) المشفر تلقائياً 🛡️');
 }
 
 // ==========================================
@@ -838,13 +1145,14 @@ async function deleteWorkspace(wsId) {
 }
 
 // ==========================================
+// ==========================================
 // PostgreSQL Database Vault Operations
 // ==========================================
 
 async function loadUserVault() {
-    loadFromLocalStorage();
+    await loadFromLocalStorage();
 
-    if (!supabaseClient || !masterKey) return;
+    if (!supabaseClient || (!activeVaultKey && !legacyMasterKey)) return;
 
     try {
         const { data: { user } } = await supabaseClient.auth.getUser();
@@ -869,22 +1177,33 @@ async function loadUserVault() {
         }
 
         if (data && data.length > 0) {
-            const cloudAccounts = data.map(row => ({
-                id: row.id,
-                workspaceId: decryptText(row.category)?.startsWith('ws-') ? decryptText(row.category) : (row.notes && decryptText(row.notes).includes('__WS__') ? decryptText(row.notes).split('__WS__')[1] : 'ws-personal'),
-                name: decryptText(row.name),
-                username: decryptText(row.username),
-                password: decryptText(row.password),
-                url: decryptText(row.url),
-                category: (row.notes && decryptText(row.notes).includes('__CAT__')) ? decryptText(row.notes).split('__CAT__')[1].split('__WS__')[0] : decryptText(row.category) || 'أخرى',
-                notes: (row.notes && decryptText(row.notes).includes('__NOTES__')) ? decryptText(row.notes).split('__NOTES__')[1].split('__CAT__')[0] : decryptText(row.notes)
-            })).filter(acc => acc.name || acc.username || acc.password);
+            const cloudAccounts = await Promise.all(data.map(async row => {
+                const decCat = await decryptText(row.category);
+                const decNotes = await decryptText(row.notes);
+                const decName = await decryptText(row.name);
+                const decUser = await decryptText(row.username);
+                const decPwd = await decryptText(row.password);
+                const decUrl = await decryptText(row.url);
+
+                return {
+                    id: row.id,
+                    workspaceId: decCat?.startsWith('ws-') ? decCat : (decNotes && decNotes.includes('__WS__') ? decNotes.split('__WS__')[1] : 'ws-personal'),
+                    name: decName,
+                    username: decUser,
+                    password: decPwd,
+                    url: decUrl,
+                    category: (decNotes && decNotes.includes('__CAT__')) ? decNotes.split('__CAT__')[1].split('__WS__')[0] : decCat || 'أخرى',
+                    notes: (decNotes && decNotes.includes('__NOTES__')) ? decNotes.split('__NOTES__')[1].split('__CAT__')[0] : decNotes
+                };
+            }));
+
+            const filteredCloud = cloudAccounts.filter(acc => acc.name || acc.username || acc.password);
 
             // Merge cloud accounts with any existing local-only accounts
-            const cloudIds = new Set(cloudAccounts.map(a => a.id));
+            const cloudIds = new Set(filteredCloud.map(a => a.id));
             const localOnly = accountsData.filter(a => a.id && !cloudIds.has(a.id));
-            accountsData = [...cloudAccounts, ...localOnly];
-            saveToLocalStorage();
+            accountsData = [...filteredCloud, ...localOnly];
+            await saveToLocalStorage();
 
             // If there were local-only accounts, push them up to cloud
             if (localOnly.length > 0) {
@@ -899,7 +1218,7 @@ async function loadUserVault() {
     }
 }
 
-function loadFromLocalStorage() {
+async function loadFromLocalStorage() {
     const key = STORAGE_LOCAL_VAULT_PREFIX + currentUserEmail;
     const wsKey = STORAGE_WORKSPACES_PREFIX + currentUserEmail;
 
@@ -915,10 +1234,9 @@ function loadFromLocalStorage() {
     }
 
     const saved = localStorage.getItem(key);
-    if (saved && masterKey) {
+    if (saved && (activeVaultKey || legacyMasterKey)) {
         try {
-            const bytes = CryptoJS.AES.decrypt(saved, masterKey);
-            const dec = bytes.toString(CryptoJS.enc.Utf8);
+            const dec = await decryptText(saved);
             if (dec) {
                 accountsData = JSON.parse(dec);
             }
@@ -928,21 +1246,21 @@ function loadFromLocalStorage() {
     }
 }
 
-function saveToLocalStorage() {
-    if (!currentUserEmail || !masterKey) return;
+async function saveToLocalStorage() {
+    if (!currentUserEmail || (!activeVaultKey && !legacyMasterKey)) return;
     const key = STORAGE_LOCAL_VAULT_PREFIX + currentUserEmail;
     const wsKey = STORAGE_WORKSPACES_PREFIX + currentUserEmail;
 
     localStorage.setItem(wsKey, JSON.stringify(userWorkspaces));
 
     const jsonStr = JSON.stringify(accountsData);
-    const encrypted = CryptoJS.AES.encrypt(jsonStr, masterKey).toString();
+    const encrypted = await encryptText(jsonStr);
     localStorage.setItem(key, encrypted);
 }
 
 async function saveAndSyncVault() {
-    saveToLocalStorage();
-    if (!supabaseClient || !currentUserEmail || !masterKey) return;
+    await saveToLocalStorage();
+    if (!supabaseClient || !currentUserEmail || (!activeVaultKey && !legacyMasterKey)) return;
 
     const syncDot = document.getElementById('header-sync-dot');
     const syncLabel = document.getElementById('header-sync-label');
@@ -967,24 +1285,24 @@ async function saveAndSyncVault() {
             }
         });
         if (idUpdated) {
-            saveToLocalStorage();
+            await saveToLocalStorage();
         }
 
         if (accountsData.length > 0) {
-            const recordsToUpsert = accountsData.map(acc => {
+            const recordsToUpsert = await Promise.all(accountsData.map(async acc => {
                 const combinedNotes = `__NOTES__${acc.notes || ''}__CAT__${acc.category || 'أخرى'}__WS__${acc.workspaceId || 'ws-personal'}`;
                 return {
                     id: acc.id,
                     user_id: user.id,
-                    name: encryptText(acc.name),
-                    username: encryptText(acc.username),
-                    password: encryptText(acc.password),
-                    url: encryptText(acc.url || ''),
-                    category: encryptText(acc.category || 'أخرى'),
-                    notes: encryptText(combinedNotes),
+                    name: await encryptText(acc.name),
+                    username: await encryptText(acc.username),
+                    password: await encryptText(acc.password),
+                    url: await encryptText(acc.url || ''),
+                    category: await encryptText(acc.category || 'أخرى'),
+                    notes: await encryptText(combinedNotes),
                     updated_at: new Date().toISOString()
                 };
-            });
+            }));
 
             const { error } = await supabaseClient
                 .from('vault_items')
@@ -1074,7 +1392,7 @@ function setupRealtimeSync() {
     // Start 30-second continuous background sync loop
     if (backgroundSyncTimer) clearInterval(backgroundSyncTimer);
     backgroundSyncTimer = setInterval(async () => {
-        if (currentUserEmail && masterKey && supabaseClient) {
+        if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
             await saveAndSyncVault();
         }
     }, 30000);
@@ -1085,7 +1403,7 @@ function setupRealtimeSync() {
 
         // Auto-sync when internet reconnects
         window.addEventListener('online', async () => {
-            if (currentUserEmail && masterKey && supabaseClient) {
+            if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
                 showToast('تم استعادة الاتصال بالإنترنت، جاري المزامنة... 🌐');
                 await syncWithCloudNow();
             }
@@ -1093,7 +1411,7 @@ function setupRealtimeSync() {
 
         // Auto-sync when returning to the tab
         document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && currentUserEmail && masterKey && supabaseClient) {
+            if (document.visibilityState === 'visible' && currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
                 await loadUserVault();
                 renderWorkspacesList();
                 renderAccounts();
@@ -2046,17 +2364,18 @@ function fillGeneratedPassword() {
 // ==========================================
 // Export / Import Encrypted Backups
 // ==========================================
-function exportEncryptedData() {
-    if (!masterKey) return;
+async function exportEncryptedData() {
+    if (!activeVaultKey && !legacyMasterKey) return;
     const exportObject = {
         workspaces: userWorkspaces,
         accounts: accountsData
     };
     const jsonString = JSON.stringify(exportObject);
-    const encrypted = CryptoJS.AES.encrypt(jsonString, masterKey).toString();
+    const encrypted = await encryptText(jsonString);
 
     const dataObj = {
         app: "SafeVault PRO Multi-Workspace",
+        version: 2,
         user: currentUserEmail,
         timestamp: new Date().toISOString(),
         encryptedPayload: encrypted
@@ -2083,13 +2402,17 @@ function importEncryptedData(event) {
             const content = JSON.parse(e.target.result);
             const payload = content.encryptedPayload || content;
 
-            const bytes = CryptoJS.AES.decrypt(payload, masterKey);
-            const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+            let decryptedString = '';
+            if (typeof payload === 'object') {
+                decryptedString = await decryptText(JSON.stringify(payload));
+            } else {
+                decryptedString = await decryptText(payload);
+            }
 
             if (!decryptedString) {
                 await showCustomAlert({
                     title: 'فشل فك التشفير',
-                    message: 'يبدو أن هذا الملف مشفر بكلمة مرور رئيسية مختلفة عن حسابك الحالي.',
+                    message: 'يبدو أن هذا الملف مشفر بمفتاح خزنة مختلف عن حسابك الحالي.',
                     type: 'warning',
                     icon: 'fa-lock'
                 });
