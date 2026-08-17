@@ -40,10 +40,9 @@ function saveActiveSession(email, profile) {
     };
 
     try {
-        // sessionStorage persists across F5 refresh in the current tab only
+        // Persist permanently in localStorage and sessionStorage so it never logs out across browser restarts
+        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionPayload));
         sessionStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionPayload));
-        // localStorage only keeps user email for auto-fill on next launch
-        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify({ email, profile }));
     } catch (e) {}
 }
 
@@ -323,9 +322,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup global user activity listeners for Auto-Lock
     setupAutoLockActivityTracker();
 
-    // 1. Check for active unlocked session in sessionStorage (preserves state on F5 reload)
+    // 1. Check for active permanent session in localStorage or sessionStorage
     try {
-        const sessionStr = sessionStorage.getItem(STORAGE_SESSION_KEY);
+        const sessionStr = localStorage.getItem(STORAGE_SESSION_KEY) || sessionStorage.getItem(STORAGE_SESSION_KEY);
         if (sessionStr) {
             const parsed = JSON.parse(sessionStr);
             if (parsed && parsed.email && (parsed.rawVaultKeyHex || parsed.legacyMasterKey)) {
@@ -339,19 +338,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 await loadUserVault();
                 showAppDashboard();
-                resetAutoLockTimer();
                 hideSplash();
                 return;
-            }
-        }
-
-        // 2. Otherwise populate login email field from localStorage
-        const localSaved = localStorage.getItem(STORAGE_SESSION_KEY);
-        if (localSaved) {
-            const parsedLocal = JSON.parse(localSaved);
-            if (parsedLocal && parsedLocal.email) {
-                const loginEmailInput = document.getElementById('login-email');
-                if (loginEmailInput) loginEmailInput.value = parsedLocal.email;
             }
         }
     } catch (e) {
@@ -830,24 +818,15 @@ async function handleResendOtp() {
 // ==========================================
 
 function setupAutoLockActivityTracker() {
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
-    events.forEach(evt => {
-        window.addEventListener(evt, () => {
-            if (activeVaultKey) {
-                resetAutoLockTimer();
-            }
-        }, { passive: true });
-    });
+    // Activity tracker kept for user interaction listeners
 }
 
 function resetAutoLockTimer() {
-    if (autoLockTimeoutId) clearTimeout(autoLockTimeoutId);
-    autoLockTimeoutId = setTimeout(() => {
-        if (activeVaultKey) {
-            handleLockVault();
-            showToast('تم قفل الخزنة تلقائياً لحماية بياناتك بعد فترة خمول 🔒');
-        }
-    }, AUTO_LOCK_DELAY_MS);
+    // Permanent session: Inactivity auto-lock is disabled
+    if (autoLockTimeoutId) {
+        clearTimeout(autoLockTimeoutId);
+        autoLockTimeoutId = null;
+    }
 }
 
 function handleLockVault() {
@@ -907,11 +886,11 @@ function showAppDashboard() {
     updateUserProfileUI();
     setupRealtimeSync();
     renderWorkspacesList();
-    renderAccounts();
+    showVaultPage();
 }
 
 // ==========================================
-// USER PROFILE MANAGEMENT
+// USER PROFILE MANAGEMENT & STANDALONE PAGE
 // ==========================================
 
 function updateUserProfileUI() {
@@ -923,30 +902,88 @@ function updateUserProfileUI() {
 
     if (nameEl) nameEl.innerText = displayName;
     if (avatarMini) avatarMini.innerText = firstLetter;
+
+    // Profile Page Hero Elements
+    const heroName = document.getElementById('profile-hero-name');
+    const heroAvatar = document.getElementById('profile-hero-avatar');
+    const heroEmail = document.getElementById('profile-hero-email');
+
+    if (heroName) heroName.innerText = displayName;
+    if (heroAvatar) heroAvatar.innerText = firstLetter;
+    if (heroEmail) heroEmail.innerText = currentUserEmail;
 }
 
-function openProfileModal() {
-    const displayName = currentUserProfile.fullName || currentUserEmail.split('@')[0] || 'المستخدم';
-    const firstLetter = displayName.trim().charAt(0).toUpperCase();
+function showProfilePage() {
+    const vaultView = document.getElementById('vault-view');
+    const profileView = document.getElementById('profile-view');
+    const sideNavVault = document.getElementById('side-nav-vault');
+    const sideNavProfile = document.getElementById('side-nav-profile');
+    const mobNavVault = document.getElementById('mob-nav-vault');
+    const mobNavProfile = document.getElementById('mob-nav-profile');
 
-    document.getElementById('profile-avatar-large').innerText = firstLetter;
-    document.getElementById('profile-display-name').innerText = displayName;
-    document.getElementById('profile-display-email').innerText = currentUserEmail;
-
-    document.getElementById('prof-fullname').value = currentUserProfile.fullName || '';
-    document.getElementById('prof-phone').value = currentUserProfile.phone || '';
-    document.getElementById('prof-email-readonly').value = currentUserEmail;
-
-    const recValEl = document.getElementById('profile-recovery-val');
-    if (recValEl) {
-        recValEl.innerText = 'محمي بتقنية AES-256-GCM السحابية';
+    if (vaultView) vaultView.classList.add('hidden');
+    if (profileView) {
+        profileView.classList.remove('hidden');
+        profileView.scrollTop = 0;
     }
 
-    document.getElementById('profile-modal').classList.remove('hidden');
+    if (sideNavVault) sideNavVault.classList.remove('active');
+    if (sideNavProfile) sideNavProfile.classList.add('active');
+    if (mobNavVault) mobNavVault.classList.remove('active');
+    if (mobNavProfile) mobNavProfile.classList.add('active');
+
+    // Populate profile inputs
+    const fullNameInput = document.getElementById('prof-fullname');
+    const phoneInput = document.getElementById('prof-phone');
+    const emailReadonly = document.getElementById('prof-email-readonly');
+
+    if (fullNameInput) fullNameInput.value = currentUserProfile.fullName || '';
+    if (phoneInput) phoneInput.value = currentUserProfile.phone || '';
+    if (emailReadonly) emailReadonly.value = currentUserEmail;
+
+    // Reset change password form & alerts
+    const pwdForm = document.getElementById('change-password-form');
+    if (pwdForm) pwdForm.reset();
+    const pwdErr = document.getElementById('change-pwd-error');
+    if (pwdErr) pwdErr.classList.add('hidden');
+    const pwdSuccess = document.getElementById('change-pwd-success');
+    if (pwdSuccess) pwdSuccess.classList.add('hidden');
+    updateProfilePwdStrength('');
+
+    updateUserProfileUI();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showVaultPage() {
+    const vaultView = document.getElementById('vault-view');
+    const profileView = document.getElementById('profile-view');
+    const sideNavVault = document.getElementById('side-nav-vault');
+    const sideNavProfile = document.getElementById('side-nav-profile');
+    const mobNavVault = document.getElementById('mob-nav-vault');
+    const mobNavProfile = document.getElementById('mob-nav-profile');
+
+    if (profileView) profileView.classList.add('hidden');
+    if (vaultView) {
+        vaultView.classList.remove('hidden');
+        vaultView.scrollTop = 0;
+    }
+
+    if (sideNavVault) sideNavVault.classList.add('active');
+    if (sideNavProfile) sideNavProfile.classList.remove('active');
+    if (mobNavVault) mobNavVault.classList.add('active');
+    if (mobNavProfile) mobNavProfile.classList.remove('active');
+
+    renderAccounts();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Compatibility aliases
+function openProfileModal() {
+    showProfilePage();
 }
 
 function closeProfileModal() {
-    document.getElementById('profile-modal').classList.add('hidden');
+    showVaultPage();
 }
 
 async function handleProfileUpdate(e) {
@@ -968,6 +1005,7 @@ async function handleProfileUpdate(e) {
         currentUserProfile.phone = phone;
 
         localStorage.setItem(STORAGE_PROFILE_PREFIX + currentUserEmail, JSON.stringify(currentUserProfile));
+        saveActiveSession(currentUserEmail, currentUserProfile);
 
         if (supabaseClient) {
             await supabaseClient.auth.updateUser({
@@ -979,7 +1017,6 @@ async function handleProfileUpdate(e) {
         }
 
         updateUserProfileUI();
-        closeProfileModal();
         showToast('تم تحديث بيانات الملف الشخصي بنجاح! 👤✨');
     } catch (err) {
         console.error('Profile update error:', err);
@@ -987,6 +1024,143 @@ async function handleProfileUpdate(e) {
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-user-check"></i> حفظ بيانات الملف الشخصي';
+    }
+}
+
+// ==========================================
+// Change User Master Password (Zero-Knowledge Re-Wrapping)
+// ==========================================
+function updateProfilePwdStrength(pwd) {
+    const bar = document.getElementById('prof-strength-bar');
+    const text = document.getElementById('prof-strength-text');
+    if (!bar || !text) return;
+
+    if (!pwd) {
+        bar.style.width = '0%';
+        bar.style.backgroundColor = 'transparent';
+        text.innerText = 'قوة كلمة المرور';
+        text.style.color = 'var(--text-muted)';
+        return;
+    }
+
+    let score = 0;
+    if (pwd.length >= 8) score += 1;
+    if (pwd.length >= 12) score += 1;
+    if (/[A-Z]/.test(pwd) && /[a-z]/.test(pwd)) score += 1;
+    if (/[0-9]/.test(pwd)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+
+    if (score <= 2) {
+        bar.style.width = '33%';
+        bar.style.backgroundColor = 'var(--danger)';
+        text.innerText = 'ضعيفة (يُفضل استخدام رموز وأرقام)';
+        text.style.color = 'var(--danger)';
+    } else if (score <= 4) {
+        bar.style.width = '66%';
+        bar.style.backgroundColor = 'var(--warning)';
+        text.innerText = 'متوسطة الجودة';
+        text.style.color = 'var(--warning)';
+    } else {
+        bar.style.width = '100%';
+        bar.style.backgroundColor = 'var(--accent-emerald)';
+        text.innerText = 'قوية وممتازة 🛡️';
+        text.style.color = 'var(--accent-emerald)';
+    }
+}
+
+async function handleUserChangePassword(e) {
+    e.preventDefault();
+    const currentPassword = document.getElementById('change-pwd-current').value;
+    const newPassword = document.getElementById('change-pwd-new').value;
+    const confirmPassword = document.getElementById('change-pwd-confirm').value;
+    const submitBtn = document.getElementById('change-pwd-submit-btn');
+    const errEl = document.getElementById('change-pwd-error');
+    const successEl = document.getElementById('change-pwd-success');
+
+    errEl.classList.add('hidden');
+    successEl.classList.add('hidden');
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        showAuthError('change-pwd-error', 'يرجى ملء جميع حقول كلمة المرور.');
+        return;
+    }
+
+    if (newPassword.length < 8) {
+        showAuthError('change-pwd-error', 'يجب ألا تقل كلمة المرور الجديدة عن 8 خانات.');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showAuthError('change-pwd-error', 'كلمة المرور الجديدة وتأكيدها غير متطابقين.');
+        return;
+    }
+
+    if (newPassword === currentPassword) {
+        showAuthError('change-pwd-error', 'كلمة المرور الجديدة يجب أن تكون مختلفة عن الحالية.');
+        return;
+    }
+
+    if (!rawVaultKeyBytes && !activeVaultKey) {
+        showAuthError('change-pwd-error', 'حدث خطأ في الجلسة النشطة. يرجى تسجيل الدخول مجدداً.');
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التحقق وإعادة تشفير الخزنة...';
+
+    try {
+        // Step 1: Verify current password if Supabase is connected
+        if (supabaseClient) {
+            const { error: verifyErr } = await supabaseClient.auth.signInWithPassword({
+                email: currentUserEmail,
+                password: currentPassword
+            });
+
+            if (verifyErr) {
+                throw new Error('كلمة المرور الحالية غير صحيحة.');
+            }
+        }
+
+        // Step 2: Generate new random salt and derive new Wrapping Key (KEK)
+        const newVaultSaltHex = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+        const newKekPwd = await cryptoDeriveWrappingKey(newPassword, newVaultSaltHex);
+
+        // Step 3: Re-wrap the SAME in-memory rawVaultKeyBytes with new KEK
+        const newWrappedPwd = await cryptoWrapVaultKey(rawVaultKeyBytes, newKekPwd);
+
+        // Step 4: Update password & metadata in Supabase
+        if (supabaseClient) {
+            const { error: updateErr } = await supabaseClient.auth.updateUser({
+                password: newPassword,
+                data: {
+                    vault_salt: newVaultSaltHex,
+                    wrapped_vault_key_pwd: newWrappedPwd,
+                    crypto_version: 2
+                }
+            });
+
+            if (updateErr) throw updateErr;
+        }
+
+        // Step 5: Update in-memory legacy derivation & persist active session
+        legacyMasterKey = deriveLegacyMasterKey(newPassword, currentUserEmail);
+        saveActiveSession(currentUserEmail, currentUserProfile);
+
+        // Step 6: Reset inputs & show success feedback
+        document.getElementById('change-pwd-current').value = '';
+        document.getElementById('change-pwd-new').value = '';
+        document.getElementById('change-pwd-confirm').value = '';
+        updateProfilePwdStrength('');
+
+        successEl.classList.remove('hidden');
+        showToast('تم تغيير كلمة المرور وإعادة تشفير الخزنة بنجاح! 🔐✨');
+
+    } catch (err) {
+        console.error('Password change error:', err);
+        showAuthError('change-pwd-error', err.message || 'حدث خطأ أثناء تغيير كلمة المرور.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> تحديث كلمة المرور';
     }
 }
 
@@ -998,6 +1172,20 @@ function copyUserRecoveryKey() {
 // WORKSPACES MANAGEMENT
 // ==========================================
 
+function getResolvedWorkspaceId(acc) {
+    if (!acc.workspaceId || acc.workspaceId === 'ws-personal') return 'ws-personal';
+    const exists = userWorkspaces.some(w => w.id === acc.workspaceId);
+    if (exists) return acc.workspaceId;
+
+    // If acc had an orphaned workspace ID or 'ws-work', auto-link it to user's custom workspace
+    const customWs = userWorkspaces.find(w => w.id !== 'ws-personal');
+    if (customWs) {
+        acc.workspaceId = customWs.id;
+        return customWs.id;
+    }
+    return 'ws-personal';
+}
+
 function renderWorkspacesList() {
     const listEl = document.getElementById('workspaces-list');
     const wsCountEl = document.getElementById('workspaces-count');
@@ -1008,6 +1196,11 @@ function renderWorkspacesList() {
     if (!userWorkspaces || userWorkspaces.length === 0) {
         userWorkspaces = JSON.parse(JSON.stringify(DEFAULT_WORKSPACES));
     }
+
+    // Resolve workspace IDs for all accounts
+    accountsData.forEach(acc => {
+        acc.workspaceId = getResolvedWorkspaceId(acc);
+    });
 
     if (wsCountEl) wsCountEl.innerText = userWorkspaces.length;
 
@@ -1027,7 +1220,7 @@ function renderWorkspacesList() {
 
     // 2. Custom User Workspaces
     userWorkspaces.forEach(ws => {
-        const count = accountsData.filter(a => (a.workspaceId || 'ws-personal') === ws.id).length;
+        const count = accountsData.filter(a => getResolvedWorkspaceId(a) === ws.id).length;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `ws-item-btn ${activeWorkspaceId === ws.id ? 'active' : ''}`;
@@ -1130,37 +1323,61 @@ function closeWorkspaceModal() {
     document.getElementById('workspace-modal').classList.add('hidden');
 }
 
+let isSubmittingWorkspace = false;
+
 async function handleWorkspaceSubmit(e) {
     e.preventDefault();
-    const id = document.getElementById('ws-id').value;
-    const name = document.getElementById('ws-name-input').value.trim();
-    const desc = document.getElementById('ws-desc-input').value.trim();
-    const iconRadio = document.querySelector('input[name="ws-icon"]:checked');
-    const icon = iconRadio ? iconRadio.value : 'fa-briefcase';
+    if (isSubmittingWorkspace) return;
 
+    const name = document.getElementById('ws-name-input').value.trim();
     if (!name) return;
 
-    if (id) {
-        const idx = userWorkspaces.findIndex(w => w.id === id);
-        if (idx !== -1) {
-            userWorkspaces[idx] = { id, name, icon, desc };
-        }
-    } else {
-        const newWs = {
-            id: 'ws-' + Math.random().toString(36).substr(2, 8),
-            name,
-            icon,
-            desc
-        };
-        userWorkspaces.push(newWs);
-        activeWorkspaceId = newWs.id;
+    isSubmittingWorkspace = true;
+    const submitBtn = document.getElementById('save-ws-btn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
     }
 
-    await saveAndSyncVault();
-    closeWorkspaceModal();
-    renderWorkspacesList();
-    renderAccounts();
-    showToast(id ? 'تم تحديث مساحة العمل بنجاح!' : 'تم إنشاء مساحة العمل المخصصة بنجاح! 📁');
+    try {
+        const id = document.getElementById('ws-id').value;
+        const desc = document.getElementById('ws-desc-input').value.trim();
+        const iconRadio = document.querySelector('input[name="ws-icon"]:checked');
+        const icon = iconRadio ? iconRadio.value : 'fa-briefcase';
+
+        if (id) {
+            const idx = userWorkspaces.findIndex(w => w.id === id);
+            if (idx !== -1) {
+                userWorkspaces[idx] = { id, name, icon, desc };
+            }
+        } else {
+            const newWs = {
+                id: 'ws-' + Math.random().toString(36).substr(2, 8),
+                name,
+                icon,
+                desc
+            };
+            userWorkspaces.push(newWs);
+            activeWorkspaceId = newWs.id;
+        }
+
+        // Instant UI feedback (Optimistic Update)
+        closeWorkspaceModal();
+        renderWorkspacesList();
+        renderAccounts();
+        showToast(id ? 'تم تحديث مساحة العمل بنجاح!' : 'تم إنشاء مساحة العمل المخصصة بنجاح! 📁');
+
+        // Background synchronization
+        await saveAndSyncVault();
+    } catch (err) {
+        console.error('Error saving workspace:', err);
+    } finally {
+        isSubmittingWorkspace = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> حفظ مساحة العمل';
+        }
+    }
 }
 
 async function deleteWorkspace(wsId) {
@@ -1233,34 +1450,72 @@ async function loadUserVault() {
                 const decUser = await decryptText(row.username);
                 const decPwd = await decryptText(row.password);
                 const decUrl = await decryptText(row.url);
+                const urls = decUrl ? decUrl.split(/[\n,]/).map(u => u.trim()).filter(u => u.length > 0) : [];
+                const isFav = decNotes && decNotes.includes('__FAV__1');
+                const rawWs = decNotes && decNotes.includes('__WS__') ? decNotes.split('__WS__')[1].split('__FAV__')[0] : 'ws-personal';
+                const cleanNotes = decNotes && decNotes.includes('__NOTES__') ? decNotes.split('__NOTES__')[1].split('__CAT__')[0] : decNotes;
 
                 return {
                     id: row.id,
-                    workspaceId: decCat?.startsWith('ws-') ? decCat : (decNotes && decNotes.includes('__WS__') ? decNotes.split('__WS__')[1] : 'ws-personal'),
+                    workspaceId: decCat?.startsWith('ws-') ? decCat : rawWs,
                     name: decName,
                     username: decUser,
                     password: decPwd,
                     url: decUrl,
+                    urls: urls,
+                    isFavorite: isFav,
                     category: (decNotes && decNotes.includes('__CAT__')) ? decNotes.split('__CAT__')[1].split('__WS__')[0] : decCat || 'أخرى',
-                    notes: (decNotes && decNotes.includes('__NOTES__')) ? decNotes.split('__NOTES__')[1].split('__CAT__')[0] : decNotes
+                    notes: cleanNotes,
+                    updated_at: row.updated_at || row.created_at || null
                 };
             }));
 
             const filteredCloud = cloudAccounts.filter(acc => acc.name || acc.username || acc.password);
 
-            let hasLegacyFormat = false;
-            data.forEach(row => {
-                if (row.name && row.name.startsWith('U2FsdGVk')) hasLegacyFormat = true;
+            // Smart Merge: Never overwrite newer or more detailed local data with stale cloud data
+            const localMap = new Map();
+            accountsData.forEach(acc => {
+                if (acc && acc.id) localMap.set(acc.id, acc);
             });
 
-            // Merge cloud accounts with any existing local-only accounts
-            const cloudIds = new Set(filteredCloud.map(a => a.id));
-            const localOnly = accountsData.filter(a => a.id && !cloudIds.has(a.id));
-            accountsData = [...filteredCloud, ...localOnly];
+            const mergedAccounts = [];
+            const seenIds = new Set();
+            let needReSync = false;
+
+            for (const cloudAcc of filteredCloud) {
+                seenIds.add(cloudAcc.id);
+                const localAcc = localMap.get(cloudAcc.id);
+
+                if (localAcc) {
+                    const localTime = localAcc.updated_at ? new Date(localAcc.updated_at).getTime() : 0;
+                    const cloudTime = cloudAcc.updated_at ? new Date(cloudAcc.updated_at).getTime() : 0;
+                    const localUrls = getAccountUrls(localAcc);
+                    const cloudUrls = getAccountUrls(cloudAcc);
+
+                    // If local has newer update or more urls, preserve local and schedule re-sync
+                    if (localTime > cloudTime || (localUrls.length > cloudUrls.length)) {
+                        mergedAccounts.push(localAcc);
+                        needReSync = true;
+                    } else {
+                        mergedAccounts.push(cloudAcc);
+                    }
+                } else {
+                    mergedAccounts.push(cloudAcc);
+                }
+            }
+
+            // Keep local-only accounts that haven't reached cloud yet
+            for (const acc of accountsData) {
+                if (acc && acc.id && !seenIds.has(acc.id)) {
+                    mergedAccounts.push(acc);
+                    needReSync = true;
+                }
+            }
+
+            accountsData = mergedAccounts;
             await saveToLocalStorage();
 
-            // If there were local-only accounts or legacy ciphertext items, re-encrypt in AES-256-GCM and push to cloud
-            if (localOnly.length > 0 || hasLegacyFormat) {
+            if (needReSync) {
                 await saveAndSyncVault();
             }
         } else if (accountsData.length > 0) {
@@ -1344,17 +1599,18 @@ async function saveAndSyncVault() {
 
         if (accountsData.length > 0) {
             const recordsToUpsert = await Promise.all(accountsData.map(async acc => {
-                const combinedNotes = `__NOTES__${acc.notes || ''}__CAT__${acc.category || 'أخرى'}__WS__${acc.workspaceId || 'ws-personal'}`;
+                const combinedNotes = `__NOTES__${acc.notes || ''}__CAT__${acc.category || 'أخرى'}__WS__${acc.workspaceId || 'ws-personal'}__FAV__${acc.isFavorite ? '1' : '0'}`;
+                const urlString = Array.isArray(acc.urls) && acc.urls.length > 0 ? acc.urls.join('\n') : (acc.url || '');
                 return {
                     id: acc.id,
                     user_id: user.id,
                     name: await encryptText(acc.name),
                     username: await encryptText(acc.username),
                     password: await encryptText(acc.password),
-                    url: await encryptText(acc.url || ''),
+                    url: await encryptText(urlString),
                     category: await encryptText(acc.category || 'أخرى'),
                     notes: await encryptText(combinedNotes),
-                    updated_at: new Date().toISOString()
+                    updated_at: acc.updated_at || new Date().toISOString()
                 };
             }));
 
@@ -1614,7 +1870,7 @@ function updateSecurityHealth() {
             badgeEl.className = 'health-score-badge';
         } else {
             const score = Math.round((strongCount / total) * 100);
-            badgeEl.innerText = `${score}% درجة الأمان`;
+            badgeEl.innerText = `${score}% أمان`;
             if (score >= 80) {
                 badgeEl.style.background = 'var(--success-bg)';
                 badgeEl.style.color = 'var(--success)';
@@ -1715,6 +1971,21 @@ function shareAccountData(id, btnElement = null) {
 // ==========================================
 // Accounts Management (Render, Add, Edit, Delete)
 // ==========================================
+function ensureAccountDecrypted(acc) {
+    if (!acc) return;
+    if (legacyMasterKey) {
+        ['name', 'username', 'password', 'url', 'category', 'notes'].forEach(field => {
+            if (typeof acc[field] === 'string' && acc[field].startsWith('U2FsdGVk')) {
+                try {
+                    const bytes = CryptoJS.AES.decrypt(acc[field], legacyMasterKey);
+                    const dec = bytes.toString(CryptoJS.enc.Utf8);
+                    if (dec) acc[field] = dec;
+                } catch (e) {}
+            }
+        });
+    }
+}
+
 function renderAccounts() {
     const grid = document.getElementById('accounts-grid');
     const emptyState = document.getElementById('empty-state');
@@ -1731,15 +2002,19 @@ function renderAccounts() {
 
     grid.innerHTML = '';
 
+    // Auto-decrypt all accounts if any were stored as legacy ciphertext
+    accountsData.forEach(acc => ensureAccountDecrypted(acc));
+
     // Filter by Workspace, Search, and Category
     let filtered = accountsData.filter(acc => {
-        const matchesWs = activeWorkspaceId === 'ALL' || (acc.workspaceId || 'ws-personal') === activeWorkspaceId;
-        const matchesCategory = activeCategoryFilter === 'ALL' || acc.category === activeCategoryFilter;
+        const resolvedWsId = getResolvedWorkspaceId(acc);
+        const matchesWs = activeWorkspaceId === 'ALL' || resolvedWsId === activeWorkspaceId;
+        const matchesCategory = activeCategoryFilter === 'ALL' || (activeCategoryFilter === 'FAVORITES' ? !!acc.isFavorite : acc.category === activeCategoryFilter);
 
         if (!matchesWs || !matchesCategory) return false;
         if (!searchTerm) return true;
 
-        const wsObj = userWorkspaces.find(w => w.id === (acc.workspaceId || 'ws-personal')) || { name: 'الخزنة الشخصية' };
+        const wsObj = userWorkspaces.find(w => w.id === resolvedWsId) || { name: 'الخزنة الشخصية' };
         const urls = getAccountUrls(acc);
 
         // All searchable parts
@@ -1785,19 +2060,29 @@ function renderAccounts() {
         return false;
     });
 
-    // Sorting
-    if (currentSortMode === 'alphabetical') {
-        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    } else if (currentSortMode === 'category') {
-        filtered.sort((a, b) => (a.category || '').localeCompare(b.category || ''));
-    }
+    // Sorting: Pinned/Favorite accounts ALWAYS come first, then sorted by chosen sort mode
+    filtered.sort((a, b) => {
+        const favA = a.isFavorite ? 1 : 0;
+        const favB = b.isFavorite ? 1 : 0;
+        if (favA !== favB) return favB - favA; // Favorites first!
 
-    // Update counter
+        if (currentSortMode === 'alphabetical') {
+            return (a.name || '').localeCompare(b.name || '');
+        } else if (currentSortMode === 'category') {
+            return (a.category || '').localeCompare(b.category || '');
+        }
+        return 0; // default newest
+    });
+
+    // Update counters
     const totalCountEl = document.getElementById('total-count');
     if (totalCountEl) totalCountEl.innerText = filtered.length;
 
     const allChipCount = document.getElementById('chip-count-all');
     if (allChipCount) allChipCount.innerText = accountsData.length;
+
+    const favChipCount = document.getElementById('chip-count-fav');
+    if (favChipCount) favChipCount.innerText = accountsData.filter(a => a.isFavorite).length;
 
     updateSecurityHealth();
 
@@ -1809,12 +2094,12 @@ function renderAccounts() {
     emptyState.classList.add('hidden');
 
     filtered.forEach(acc => {
-        const wsObj = userWorkspaces.find(w => w.id === (acc.workspaceId || 'ws-personal')) || { name: 'شخصي', icon: 'fa-house' };
+        const wsObj = userWorkspaces.find(w => w.id === getResolvedWorkspaceId(acc)) || { name: 'الخزنة الشخصية', icon: 'fa-house' };
         const urls = getAccountUrls(acc);
         const brand = getBrandInfo(acc.name, urls[0] || acc.url, acc.category);
 
         const card = document.createElement('div');
-        card.className = 'account-card';
+        card.className = 'account-card' + (acc.isFavorite ? ' is-favorite' : '');
         card.setAttribute('title', 'انقر لعرض تفاصيل الحساب الكاملة');
         card.onclick = (e) => {
             if (!e.target.closest('button') && !e.target.closest('a') && !e.target.closest('input')) {
@@ -1844,7 +2129,10 @@ function renderAccounts() {
                         <i class="${brand.icon || 'fa-solid fa-key'}"></i>
                     </div>
                     <div>
-                        <div class="account-title">${escapeHtml(acc.name)}</div>
+                        <div class="account-title">
+                            ${escapeHtml(acc.name)}
+                            ${acc.isFavorite ? '<span class="fav-badge-star" title="حساب مثبت في المفضلة"><i class="fa-solid fa-star"></i></span>' : ''}
+                        </div>
                         <div class="badge-row">
                             <span class="account-ws-badge"><i class="fa-solid ${wsObj.icon}"></i> ${escapeHtml(wsObj.name)}</span>
                             <span class="account-category-badge">${escapeHtml(acc.category || 'أخرى')}</span>
@@ -1852,6 +2140,9 @@ function renderAccounts() {
                     </div>
                 </div>
                 <div class="card-top-actions">
+                    <button class="btn-icon star-btn-action ${acc.isFavorite ? 'is-fav' : ''}" title="${acc.isFavorite ? 'إزالة من المفضلة' : 'تثبيت في المفضلة'}" onclick="event.stopPropagation(); toggleFavoriteAccount('${acc.id}', this)">
+                        <i class="${acc.isFavorite ? 'fa-solid fa-star' : 'fa-regular fa-star'}"></i>
+                    </button>
                     <button class="btn-icon copy-btn-action" title="نسخ كل بيانات الحساب" onclick="event.stopPropagation(); copyAllAccountData('${acc.id}', this)">
                         <i class="fa-solid fa-copy"></i>
                     </button>
@@ -2012,6 +2303,20 @@ function showAccountDetails(id) {
     }
 
     // 6. Action Buttons
+    const favIcon = document.getElementById('det-fav-icon');
+    const favBtn = document.getElementById('det-fav-btn');
+    if (favIcon && favBtn) {
+        if (acc.isFavorite) {
+            favIcon.className = 'fa-solid fa-star';
+            favBtn.classList.add('is-fav');
+            favBtn.title = 'إزالة من المفضلة';
+        } else {
+            favIcon.className = 'fa-regular fa-star';
+            favBtn.classList.remove('is-fav');
+            favBtn.title = 'تثبيت في المفضلة';
+        }
+    }
+
     const copyAllBtn = document.getElementById('det-copy-all-btn');
     if (copyAllBtn) {
         copyAllBtn.onclick = () => copyAllAccountData(acc.id, copyAllBtn);
@@ -2037,6 +2342,26 @@ function showAccountDetails(id) {
 
     // Show modal
     document.getElementById('account-details-modal').classList.remove('hidden');
+}
+
+async function toggleFavoriteAccount(id, btnElement = null) {
+    const acc = accountsData.find(a => a.id === id);
+    if (!acc) return;
+
+    acc.isFavorite = !acc.isFavorite;
+    acc.updated_at = new Date().toISOString();
+
+    // Instant visual update
+    renderAccounts();
+    if (activeDetailsAccount && activeDetailsAccount.id === id) {
+        showAccountDetails(id);
+    }
+
+    showToast(acc.isFavorite ? 'تم تثبيت الحساب في المفضلة ⭐' : 'تمت إزالة الحساب من المفضلة');
+
+    // Save and sync in background
+    await saveToLocalStorage();
+    await saveAndSyncVault();
 }
 
 function closeAccountDetailsModal() {
@@ -2142,6 +2467,8 @@ function openAddModal() {
     document.getElementById('modal-title').innerHTML = '<i class="fa-solid fa-plus-circle"></i> إضافة حساب جديد';
     document.getElementById('account-form').reset();
     document.getElementById('account-id').value = '';
+    const favCb = document.getElementById('acc-favorite');
+    if (favCb) favCb.checked = false;
 
     // Reset multiple URLs list to 1 empty input
     const urlsList = document.getElementById('urls-input-list');
@@ -2161,49 +2488,77 @@ function closeAccountModal() {
     document.getElementById('account-modal').classList.add('hidden');
 }
 
+let isSubmittingAccount = false;
+
 async function handleAccountSubmit(e) {
     e.preventDefault();
-    const id = document.getElementById('account-id').value;
-    const workspaceId = document.getElementById('acc-workspace').value || 'ws-personal';
+    if (isSubmittingAccount) return;
+
     const name = document.getElementById('acc-name').value.trim();
     const username = document.getElementById('acc-username').value.trim();
     const password = document.getElementById('acc-password').value;
-    const category = document.getElementById('acc-category').value;
-    const notes = document.getElementById('acc-notes').value.trim();
-
-    // Collect all URL inputs
-    const urlInputs = document.querySelectorAll('.acc-url-field');
-    const urls = [];
-    urlInputs.forEach(input => {
-        const val = input.value.trim();
-        if (val) urls.push(val);
-    });
-    const url = urls.join('\n');
 
     if (!name || !username || !password) {
         showToast('يرجى ملء جميع الحقول المطلوبة');
         return;
     }
 
-    if (id) {
-        const idx = accountsData.findIndex(a => a.id === id);
-        if (idx !== -1) {
-            accountsData[idx] = { id, workspaceId, name, username, password, url, category, notes };
-        }
-    } else {
-        const newAccount = {
-            id: generateUUID(),
-            workspaceId,
-            name, username, password, url, category, notes
-        };
-        accountsData.push(newAccount);
+    isSubmittingAccount = true;
+    const submitBtn = document.getElementById('save-account-btn') || e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
     }
 
-    await saveAndSyncVault();
-    closeAccountModal();
-    renderWorkspacesList();
-    renderAccounts();
-    showToast(id ? 'تم تحديث بيانات الحساب بنجاح! 🔒' : 'تمت إضافة الحساب وتشفيره بنجاح! 🛡️');
+    try {
+        const id = document.getElementById('account-id').value;
+        const workspaceId = document.getElementById('acc-workspace').value || 'ws-personal';
+        const category = document.getElementById('acc-category').value;
+        const notes = document.getElementById('acc-notes').value.trim();
+        const isFavorite = document.getElementById('acc-favorite')?.checked || false;
+
+        // Collect all URL inputs
+        const urlInputs = document.querySelectorAll('.acc-url-field');
+        const urls = [];
+        urlInputs.forEach(input => {
+            const val = input.value.trim();
+            if (val) urls.push(val);
+        });
+        const url = urls.join('\n');
+        const now = new Date().toISOString();
+
+        if (id) {
+            const idx = accountsData.findIndex(a => a.id === id);
+            if (idx !== -1) {
+                accountsData[idx] = { id, workspaceId, name, username, password, url, urls, isFavorite, category, notes, updated_at: now };
+            }
+        } else {
+            const newAccount = {
+                id: generateUUID(),
+                workspaceId,
+                name, username, password, url, urls, isFavorite, category, notes,
+                updated_at: now
+            };
+            accountsData.push(newAccount);
+        }
+
+        // Close modal immediately (Optimistic UI - Instant 0ms response!)
+        closeAccountModal();
+        renderWorkspacesList();
+        renderAccounts();
+        showToast(id ? 'تم تحديث بيانات الحساب بنجاح! 🔒' : 'تمت إضافة الحساب وتشفيره بنجاح! 🛡️');
+
+        // Sync in background without freezing the UI
+        await saveAndSyncVault();
+    } catch (err) {
+        console.error('Error saving account:', err);
+    } finally {
+        isSubmittingAccount = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> حفظ الحساب مشفراً';
+        }
+    }
 }
 
 function editAccount(id) {
@@ -2220,6 +2575,8 @@ function editAccount(id) {
     document.getElementById('acc-password').value = acc.password;
     document.getElementById('acc-category').value = acc.category || 'أخرى';
     document.getElementById('acc-notes').value = acc.notes || '';
+    const favCb = document.getElementById('acc-favorite');
+    if (favCb) favCb.checked = !!acc.isFavorite;
 
     // Populate Multiple URLs
     const urlsList = document.getElementById('urls-input-list');
@@ -2573,8 +2930,9 @@ function handleMobileNav(tab) {
     if (target) target.classList.add('active');
 
     if (tab === 'vault') {
-        switchWorkspace('ALL');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showVaultPage();
+    } else if (tab === 'profile') {
+        showProfilePage();
     }
 }
 
@@ -2611,7 +2969,7 @@ function renderDrawerWorkspacesList() {
 
     // 2. Custom Workspaces
     userWorkspaces.forEach(ws => {
-        const count = accountsData.filter(a => (a.workspaceId || 'ws-personal') === ws.id).length;
+        const count = accountsData.filter(a => getResolvedWorkspaceId(a) === ws.id).length;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `ws-item-btn ${activeWorkspaceId === ws.id ? 'active' : ''}`;
@@ -2666,6 +3024,155 @@ function generateQuickPasswordModal() {
     const genResult = document.getElementById('gen-result-modal');
     if (genResult) genResult.value = pwd;
 }
+
+// ==========================================
+// PWA (Progressive Web App) & Service Worker
+// ==========================================
+let deferredPWAInstallPrompt = null;
+
+function initPWA() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => {
+                    console.log('SafeVault PWA ServiceWorker registered successfully! 🛡️', reg.scope);
+                })
+                .catch(err => {
+                    console.warn('PWA ServiceWorker registration failed:', err);
+                });
+        });
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPWAInstallPrompt = e;
+        const installBtn = document.getElementById('pwa-install-btn');
+        if (installBtn) {
+            installBtn.classList.remove('hidden');
+        }
+    });
+
+    window.addEventListener('appinstalled', () => {
+        deferredPWAInstallPrompt = null;
+        const installBtn = document.getElementById('pwa-install-btn');
+        if (installBtn) installBtn.classList.add('hidden');
+        showToast('تم تثبيت تطبيق SafeVault بنجاح على جهازك! 📲🎉');
+    });
+}
+
+async function installPWAApp() {
+    if (!deferredPWAInstallPrompt) {
+        showToast('التطبيق مثبت بالفعل أو أن متصفحك لا يدعم التثبيت المباشر.');
+        return;
+    }
+
+    deferredPWAInstallPrompt.prompt();
+    const { outcome } = await deferredPWAInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+        const installBtn = document.getElementById('pwa-install-btn');
+        if (installBtn) installBtn.classList.add('hidden');
+    }
+    deferredPWAInstallPrompt = null;
+}
+
+// ==========================================
+// Global Smart Keyboard Shortcuts (اختصارات لوحة المفاتيح)
+// ==========================================
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        const activeElement = document.activeElement;
+        const isEditing = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+
+        // 1. Ctrl + K or Cmd + K or "/" (when not typing): Focus Search Bar
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+            e.preventDefault();
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+            return;
+        }
+
+        // "/" to search when outside inputs
+        if (e.key === '/' && !isEditing) {
+            e.preventDefault();
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+            return;
+        }
+
+        // 2. Escape: Close open modals, or clear search focus
+        if (e.key === 'Escape') {
+            const modals = [
+                'account-modal',
+                'account-details-modal',
+                'create-ws-modal',
+                'workspaces-drawer-modal',
+                'generator-modal',
+                'custom-dialog-modal'
+            ];
+
+            let closedAny = false;
+            modals.forEach(mId => {
+                const modal = document.getElementById(mId);
+                if (modal && !modal.classList.contains('hidden')) {
+                    modal.classList.add('hidden');
+                    closedAny = true;
+                }
+            });
+
+            if (!closedAny && isEditing) {
+                activeElement.blur();
+            }
+            return;
+        }
+
+        // 3. "N" or Alt + N: Open Add Account Modal (when not typing inside an input)
+        if ((e.key === 'n' || e.key === 'N' || ((e.altKey) && (e.key === 'n' || e.key === 'N'))) && !isEditing && !e.ctrlKey && !e.metaKey) {
+            const authCard = document.getElementById('auth-card');
+            if (authCard && !authCard.classList.contains('hidden')) return;
+            e.preventDefault();
+            openAddModal();
+            return;
+        }
+
+        // 4. Alt + F: Toggle Favorites filter
+        if ((e.altKey && (e.key === 'f' || e.key === 'F')) && !isEditing) {
+            e.preventDefault();
+            if (activeCategoryFilter === 'FAVORITES') {
+                filterByCategory('ALL');
+            } else {
+                filterByCategory('FAVORITES');
+            }
+            return;
+        }
+    });
+}
+
+// ==========================================
+// Universal Modal Backdrop Dismiss (Click Outside to Close)
+// ==========================================
+function initModalBackdropDismiss() {
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('mousedown', (e) => {
+            if (e.target === overlay) {
+                overlay.classList.add('hidden');
+                if (overlay.id === 'account-details-modal') {
+                    activeDetailsAccount = null;
+                }
+            }
+        });
+    });
+}
+
+// Initialize PWA, Keyboard Shortcuts, and Backdrop Dismissal on startup
+initPWA();
+initKeyboardShortcuts();
+initModalBackdropDismiss();
 
 function copyGenPasswordModal() {
     const val = document.getElementById('gen-result-modal')?.value;

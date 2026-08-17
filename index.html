@@ -30,8 +30,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <!-- Supabase JS Client for PostgreSQL Auth & Realtime Sync -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- PWA & Mobile Web App Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SafeVault">
     
-    <link rel="stylesheet" href="styles.css?v=2.3.0">
+    <link rel="stylesheet" href="styles.css?v=3.7.0">
 </head>
 <body>
 
@@ -277,7 +284,7 @@
         <!-- Top Header Navigation -->
         <header class="app-header">
             <div class="header-right-group">
-                <div class="logo">
+                <div class="logo" onclick="showVaultPage()" style="cursor: pointer;" title="الصفحة الرئيسية للخزنة">
                     <div class="logo-icon-box">
                         <i class="fa-solid fa-shield-halved"></i>
                     </div>
@@ -285,7 +292,7 @@
                 </div>
 
                 <!-- User Active Profile Badge -->
-                <button type="button" class="user-active-badge" id="user-active-badge" onclick="openProfileModal()" title="عرض وتعديل الملف الشخصي">
+                <button type="button" class="user-active-badge" id="user-active-badge" onclick="showProfilePage()" title="عرض وتعديل الملف الشخصي والأمان">
                     <div class="user-avatar-mini" id="header-avatar">أ</div>
                     <div class="user-info-mini">
                         <span id="header-user-name">المستخدم</span>
@@ -299,6 +306,12 @@
             </div>
 
             <div class="header-actions">
+                <!-- PWA Install Button (Dynamic) -->
+                <button type="button" class="btn btn-secondary btn-sm hidden" id="pwa-install-btn" onclick="installPWAApp()" title="تثبيت التطبيق على جهازك للوصول السريع">
+                    <i class="fa-solid fa-download" style="color: var(--accent-emerald);"></i>
+                    <span class="hide-mobile">تثبيت التطبيق</span>
+                </button>
+
                 <!-- Theme Toggle Button -->
                 <button type="button" class="btn-theme-toggle" onclick="toggleTheme()" title="تبديل الوضع الداكن / الفاتح" aria-label="تبديل الثيم">
                     <i class="fa-solid fa-moon theme-moon-icon"></i>
@@ -337,6 +350,18 @@
                 <button class="btn btn-accent btn-block btn-lg add-main-btn" onclick="openAddModal()">
                     <i class="fa-solid fa-plus-circle"></i> إضافة حساب جديد
                 </button>
+
+                <!-- Navigation Switcher Card -->
+                <div class="sidebar-nav-card">
+                    <button type="button" class="sidebar-nav-btn active" id="side-nav-vault" onclick="showVaultPage()">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>الخزنة وكلمات المرور</span>
+                    </button>
+                    <button type="button" class="sidebar-nav-btn" id="side-nav-profile" onclick="showProfilePage()">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span>الملف الشخصي والأمان</span>
+                    </button>
+                </div>
 
                 <!-- WORKSPACES SECTION (مساحات العمل المخصصة) -->
                 <div class="workspaces-card">
@@ -449,7 +474,7 @@
             </aside>
 
             <!-- Accounts Section -->
-            <section class="accounts-section">
+            <section class="accounts-section" id="vault-view">
                 <!-- Workspace Active Banner / Filter Bar -->
                 <div class="workspace-banner" id="active-workspace-banner">
                     <div class="banner-info">
@@ -471,6 +496,7 @@
                     <div class="search-box">
                         <i class="fa-solid fa-magnifying-glass search-icon"></i>
                         <input type="text" id="search-input" placeholder="ابحث بأي شيء: الاسم، الإيميل، الباسورد، الرابط، الملاحظات..." oninput="renderAccounts()">
+                        <span class="search-shortcut-badge hide-mobile" title="اضغط Ctrl + K للتركيز الفوري على البحث">Ctrl K</span>
                         <button type="button" class="clear-search-btn hidden" id="clear-search-btn" onclick="clearSearch()" title="مسح البحث">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
@@ -505,6 +531,11 @@
                         <i class="fa-solid fa-border-all"></i>
                         <span>الكل</span>
                         <span class="chip-count" id="chip-count-all">0</span>
+                    </button>
+                    <button type="button" class="category-chip" data-cat="FAVORITES" onclick="filterByCategory('FAVORITES')">
+                        <i class="fa-solid fa-star" style="color: #f59e0b;"></i>
+                        <span>المفضلة</span>
+                        <span class="chip-count" id="chip-count-fav">0</span>
                     </button>
                     <button type="button" class="category-chip" data-cat="وسائط إجتماعية" onclick="filterByCategory('وسائط إجتماعية')">
                         <i class="fa-solid fa-share-nodes"></i>
@@ -559,6 +590,233 @@
                     </button>
                 </div>
             </section>
+
+            <!-- ==================================================== -->
+            <!-- Standalone Profile & Account Management Page View -->
+            <!-- ==================================================== -->
+            <section class="profile-page-section hidden" id="profile-view">
+                <!-- Profile Top Breadcrumb Bar -->
+                <div class="profile-top-bar">
+                    <button type="button" class="btn btn-secondary btn-back-vault" onclick="showVaultPage()" title="العودة إلى الخزنة">
+                        <i class="fa-solid fa-arrow-right"></i>
+                        <span>العودة إلى الخزنة</span>
+                    </button>
+                    <div class="profile-page-badge">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span>الملف الشخصي وإعدادات الأمان</span>
+                    </div>
+                </div>
+
+                <!-- Profile Hero Banner -->
+                <div class="profile-hero-card">
+                    <div class="profile-hero-avatar" id="profile-hero-avatar">أ</div>
+                    <div class="profile-hero-details">
+                        <div class="profile-hero-title-row">
+                            <h2 id="profile-hero-name">اسم المستخدم</h2>
+                            <span class="profile-status-badge">
+                                <span class="status-indicator-dot dot-online"></span>
+                                <span>متصل ومشفر</span>
+                            </span>
+                        </div>
+                        <p class="profile-hero-email" id="profile-hero-email">user@example.com</p>
+                        <div class="profile-hero-tags">
+                            <span class="sec-tag"><i class="fa-solid fa-shield-halved"></i> صفر معرفة (Zero-Knowledge)</span>
+                            <span class="sec-tag"><i class="fa-solid fa-lock"></i> تشفير AES-256-GCM سحابي</span>
+                            <span class="sec-tag"><i class="fa-solid fa-circle-check"></i> حساب نشط وموثق</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Panels Grid -->
+                <div class="profile-grid-container">
+                    <!-- Panel 1: Personal Information Form -->
+                    <div class="profile-panel-card">
+                        <div class="panel-header">
+                            <div class="panel-icon-wrap primary"><i class="fa-solid fa-user-pen"></i></div>
+                            <div>
+                                <h3>البيانات الشخصية</h3>
+                                <p>تحديث الاسم المعروض ورقم الهاتف المرتبط بالملف</p>
+                            </div>
+                        </div>
+
+                        <form id="profile-edit-form" novalidate onsubmit="handleProfileUpdate(event)">
+                            <div class="input-group">
+                                <label for="prof-fullname"><i class="fa-solid fa-user"></i> الاسم الكامل</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-user input-prefix-icon"></i>
+                                    <input type="text" id="prof-fullname" placeholder="الاسم الكامل..." required>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="prof-phone"><i class="fa-solid fa-phone"></i> رقم الهاتف</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-phone input-prefix-icon"></i>
+                                    <input type="tel" id="prof-phone" placeholder="رقم الهاتف (اختياري)...">
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="prof-email-readonly"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني (المرتبط بالخزنة)</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-envelope input-prefix-icon"></i>
+                                    <input type="email" id="prof-email-readonly" readonly disabled class="input-readonly">
+                                </div>
+                                <span class="field-hint"><i class="fa-solid fa-circle-info"></i> معرف الحساب الأساسي لتشفير واسترداد البيانات.</span>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-block btn-lg" id="save-profile-btn">
+                                <i class="fa-solid fa-user-check"></i> حفظ بيانات الملف الشخصي
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Panel 2: Master Password Change Form -->
+                    <div class="profile-panel-card">
+                        <div class="panel-header">
+                            <div class="panel-icon-wrap accent"><i class="fa-solid fa-key"></i></div>
+                            <div>
+                                <h3>تغيير كلمة المرور الرئيسية</h3>
+                                <p>إعادة تشفير الخزنة بكلمة مرور جديدة بأمان فائق</p>
+                            </div>
+                        </div>
+
+                        <form id="change-password-form" novalidate onsubmit="handleUserChangePassword(event)">
+                            <div class="input-group">
+                                <label for="change-pwd-current"><i class="fa-solid fa-unlock-keyhole"></i> كلمة المرور الحالية</label>
+                                <div class="password-input-wrapper">
+                                    <i class="fa-solid fa-lock input-prefix-icon"></i>
+                                    <input type="password" id="change-pwd-current" placeholder="أدخل كلمة المرور الحالية..." required autocomplete="current-password">
+                                    <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('change-pwd-current', this)">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="change-pwd-new"><i class="fa-solid fa-key"></i> كلمة المرور الجديدة</label>
+                                <div class="password-input-wrapper">
+                                    <i class="fa-solid fa-key input-prefix-icon"></i>
+                                    <input type="password" id="change-pwd-new" placeholder="8 خانات على الأقل (أحرف وأرقام ورموز)..." required autocomplete="new-password" oninput="updateProfilePwdStrength(this.value)">
+                                    <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('change-pwd-new', this)">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="pwd-strength-container" style="margin-top: 8px;">
+                                    <div class="pwd-strength-track">
+                                        <div class="pwd-strength-bar" id="prof-strength-bar"></div>
+                                    </div>
+                                    <span class="pwd-strength-text" id="prof-strength-text">قوة كلمة المرور</span>
+                                </div>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="change-pwd-confirm"><i class="fa-solid fa-check-double"></i> تأكيد كلمة المرور الجديدة</label>
+                                <div class="password-input-wrapper">
+                                    <i class="fa-solid fa-check-double input-prefix-icon"></i>
+                                    <input type="password" id="change-pwd-confirm" placeholder="أعد إدخال كلمة المرور الجديدة..." required autocomplete="new-password">
+                                    <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('change-pwd-confirm', this)">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="change-pwd-error" class="error-msg hidden"></div>
+                            <div id="change-pwd-success" class="success-alert-box hidden">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span>تم تغيير كلمة المرور وإعادة تشفير الخزنة بنجاح!</span>
+                            </div>
+
+                            <button type="submit" class="btn btn-accent btn-block btn-lg glow-button-accent" id="change-pwd-submit-btn">
+                                <i class="fa-solid fa-shield-halved"></i> تحديث كلمة المرور
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Panel 3: Cryptography & Security Information -->
+                    <div class="profile-panel-card">
+                        <div class="panel-header">
+                            <div class="panel-icon-wrap emerald"><i class="fa-solid fa-shield-halved"></i></div>
+                            <div>
+                                <h3>بنية التشفير وحماية البيانات</h3>
+                                <p>بروتوكولات الأمان القياسية المعمول بها في خزنتك</p>
+                            </div>
+                        </div>
+
+                        <div class="crypto-features-list">
+                            <div class="crypto-feature-item">
+                                <div class="cf-icon"><i class="fa-solid fa-cube"></i></div>
+                                <div class="cf-info">
+                                    <h4>تشفير AES-256-GCM متماثل</h4>
+                                    <p>مفتاح التشفير يتم توليده على جهازك ولا يُرسل للخادم أبداً.</p>
+                                </div>
+                            </div>
+
+                            <div class="crypto-feature-item">
+                                <div class="cf-icon"><i class="fa-solid fa-fingerprint"></i></div>
+                                <div class="cf-info">
+                                    <h4>اشتقاق PBKDF2 بـ 100,000 دورة</h4>
+                                    <p>حماية فائقة لمنع الهجمات التخمينية والقوة الغاشمة.</p>
+                                </div>
+                            </div>
+
+                            <div class="crypto-feature-item">
+                                <div class="cf-icon"><i class="fa-solid fa-envelope-circle-check"></i></div>
+                                <div class="cf-info">
+                                    <h4>استرداد الطوارئ المشفر (Zero-Loss OTP)</h4>
+                                    <p>إمكانية استعادة الوصول عند نسيان كلمة السر عبر كود OTP بأمان.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Emergency Key Shortcut in Profile -->
+                        <div class="profile-recovery-section" style="margin-top: 18px;">
+                            <div class="prof-rec-header">
+                                <span><i class="fa-solid fa-key" style="color: var(--accent-emerald);"></i> حالة مفتاح الاسترداد:</span>
+                                <span class="status-pill-green">محمي ومفعل سحابياً</span>
+                            </div>
+                            <div class="prof-rec-val" id="profile-recovery-val">SV-PROTECTED-AES-256-GCM</div>
+                        </div>
+                    </div>
+
+                    <!-- Panel 4: Quick Actions & Vault Controls -->
+                    <div class="profile-panel-card">
+                        <div class="panel-header">
+                            <div class="panel-icon-wrap warning"><i class="fa-solid fa-sliders"></i></div>
+                            <div>
+                                <h3>إجراءات وتحكم الحساب</h3>
+                                <p>خيارات النسخ الاحتياطي، القفل وتسجيل الخروج</p>
+                            </div>
+                        </div>
+
+                        <div class="profile-quick-actions-grid">
+                            <button type="button" class="profile-action-btn" onclick="exportEncryptedData()">
+                                <div class="pab-icon"><i class="fa-solid fa-download"></i></div>
+                                <div class="pab-text">
+                                    <strong>تصدير نسخة احتياطية</strong>
+                                    <span>تنزيل ملف مشفر كامل لحساباتك</span>
+                                </div>
+                            </button>
+
+                            <button type="button" class="profile-action-btn" onclick="handleLockVault()">
+                                <div class="pab-icon warning"><i class="fa-solid fa-lock"></i></div>
+                                <div class="pab-text">
+                                    <strong>قفل الخزنة الآن</strong>
+                                    <span>مسح المفاتيح مؤقتاً من الذاكرة</span>
+                                </div>
+                            </button>
+
+                            <button type="button" class="profile-action-btn danger" onclick="handleUserLogout()">
+                                <div class="pab-icon danger"><i class="fa-solid fa-right-from-bracket"></i></div>
+                                <div class="pab-text">
+                                    <strong>تسجيل الخروج</strong>
+                                    <span>إنهاء الجلسة بالكامل وتأمين البيانات</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <!-- Mobile Bottom Navigation Bar (Active on Mobile Screens < 768px) -->
@@ -578,7 +836,7 @@
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                 <span>المولد</span>
             </button>
-            <button type="button" class="mobile-nav-item" id="mob-nav-profile" onclick="openProfileModal()">
+            <button type="button" class="mobile-nav-item" id="mob-nav-profile" onclick="handleMobileNav('profile')">
                 <i class="fa-solid fa-user"></i>
                 <span>حسابي</span>
             </button>
@@ -717,6 +975,15 @@
                     <textarea id="acc-notes" rows="3" placeholder="أضف أي تفاصيل خاصة بالحساب، أسئلة أمان، أكواد استرداد..."></textarea>
                 </div>
 
+                <!-- Favorite Pinned Account Checkbox -->
+                <div class="input-group" style="margin-top: 4px; margin-bottom: 8px;">
+                    <label class="fav-checkbox-card" style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px 14px; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 700; color: var(--text-primary); transition: var(--transition-fast);">
+                        <input type="checkbox" id="acc-favorite" style="width: 18px; height: 18px; accent-color: #f59e0b; cursor: pointer;">
+                        <i class="fa-solid fa-star" style="color: #f59e0b; font-size: 1.05rem;"></i>
+                        <span>تثبيت هذا الحساب في المفضلة للوصول السريع ⭐</span>
+                    </label>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeAccountModal()">إلغاء</button>
                     <button type="submit" class="btn btn-primary glow-button" id="save-account-btn">
@@ -745,7 +1012,12 @@
                         </div>
                     </div>
                 </div>
-                <button class="close-btn" onclick="closeAccountDetailsModal()">&times;</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button type="button" class="btn-icon star-btn-action" id="det-fav-btn" title="تثبيت في المفضلة" onclick="if(activeDetailsAccount) toggleFavoriteAccount(activeDetailsAccount.id, this);">
+                        <i class="fa-regular fa-star" id="det-fav-icon" style="font-size: 1.15rem;"></i>
+                    </button>
+                    <button class="close-btn" onclick="closeAccountDetailsModal()">&times;</button>
+                </div>
             </div>
 
             <div class="details-modal-body">
@@ -801,79 +1073,21 @@
             <!-- Footer Action Toolbar -->
             <div class="details-modal-footer">
                 <button type="button" class="btn btn-secondary" id="det-copy-all-btn" style="color: var(--accent-emerald);">
-                    <i class="fa-solid fa-copy"></i> نسخ كل البيانات
+                    <i class="fa-solid fa-copy"></i> <span>نسخ البيانات</span>
                 </button>
                 <button type="button" class="btn btn-secondary" id="det-share-btn" style="color: var(--primary-light);">
-                    <i class="fa-solid fa-share-nodes"></i> مشاركة
+                    <i class="fa-solid fa-share-nodes"></i> <span>مشاركة</span>
                 </button>
                 <button type="button" class="btn btn-secondary" id="det-edit-btn">
-                    <i class="fa-solid fa-pen-to-square"></i> تعديل
+                    <i class="fa-solid fa-pen-to-square"></i> <span>تعديل</span>
                 </button>
                 <button type="button" class="btn btn-danger" id="det-delete-btn">
-                    <i class="fa-solid fa-trash-can"></i> حذف
-                </button>
-                <button type="button" class="btn btn-primary" onclick="closeAccountDetailsModal()">
-                    <i class="fa-solid fa-check"></i> إغلاق
+                    <i class="fa-solid fa-trash-can"></i> <span>حذف</span>
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- ==================================================== -->
-    <!-- Modal: User Profile (الملف الشخصي) -->
-    <!-- ==================================================== -->
-    <div id="profile-modal" class="modal-overlay hidden">
-        <div class="modal-card profile-modal-card">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-id-card"></i> الملف الشخصي والحساب</h3>
-                <button class="close-btn" onclick="closeProfileModal()">&times;</button>
-            </div>
-
-            <div class="profile-header-banner">
-                <div class="profile-avatar-large" id="profile-avatar-large">أ</div>
-                <div class="profile-info-text">
-                    <h3 id="profile-display-name">اسم المستخدم</h3>
-                    <span id="profile-display-email">user@example.com</span>
-                    <div class="profile-plan-badge"><i class="fa-solid fa-shield-halved"></i> حساب مشفر سحابياً (Zero-Knowledge)</div>
-                </div>
-            </div>
-
-            <form id="profile-edit-form" novalidate onsubmit="handleProfileUpdate(event)">
-                <div class="input-group">
-                    <label for="prof-fullname"><i class="fa-solid fa-user"></i> الاسم الكامل</label>
-                    <input type="text" id="prof-fullname" placeholder="الاسم الكامل..." required>
-                </div>
-
-                <div class="input-group">
-                    <label for="prof-phone"><i class="fa-solid fa-phone"></i> رقم الهاتف</label>
-                    <input type="tel" id="prof-phone" placeholder="رقم الهاتف..." required>
-                </div>
-
-                <div class="input-group">
-                    <label for="prof-email-readonly"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني (مرتبط بالحساب)</label>
-                    <input type="email" id="prof-email-readonly" readonly disabled style="opacity: 0.7; cursor: not-allowed;">
-                </div>
-
-                <!-- Emergency Key Shortcut in Profile -->
-                <div class="profile-recovery-section">
-                    <div class="prof-rec-header">
-                        <span><i class="fa-solid fa-key" style="color: var(--accent-emerald);"></i> مفتاح استرداد الطوارئ:</span>
-                        <button type="button" class="btn-icon copy-btn-action" title="نسخ المفتاح" onclick="copyUserRecoveryKey()">
-                            <i class="fa-solid fa-copy"></i>
-                        </button>
-                    </div>
-                    <div class="prof-rec-val" id="profile-recovery-val">SV-••••-••••-••••-••••</div>
-                </div>
-
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeProfileModal()">إغلاق</button>
-                    <button type="submit" class="btn btn-primary" id="save-profile-btn">
-                        <i class="fa-solid fa-user-check"></i> حفظ بيانات الملف الشخصي
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- ==================================================== -->
     <!-- Modal: Mobile Workspaces Bottom Sheet / Drawer -->
@@ -968,6 +1182,6 @@
         <span id="toast-message">تمت العملية بنجاح!</span>
     </div>
 
-    <script src="app.js?v=2.3.0"></script>
+    <script src="app.js?v=3.7.0"></script>
 </body>
 </html>
