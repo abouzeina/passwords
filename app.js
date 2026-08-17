@@ -32,18 +32,25 @@ const STORAGE_WORKSPACES_PREFIX = 'safevault_user_ws_';
 const STORAGE_PROFILE_PREFIX = 'safevault_user_prof_';
 
 function saveActiveSession(email, profile) {
-    // Only store email and non-sensitive profile info. NEVER store raw keys!
-    const payload = JSON.stringify({ email, profile });
+    const sessionPayload = {
+        email: email,
+        profile: profile,
+        rawVaultKeyHex: rawVaultKeyBytes ? bytesToHex(rawVaultKeyBytes) : '',
+        legacyMasterKey: legacyMasterKey || ''
+    };
+
     try {
-        localStorage.setItem(STORAGE_SESSION_KEY, payload);
-        sessionStorage.setItem(STORAGE_SESSION_KEY, payload);
+        // sessionStorage persists across F5 refresh in the current tab only
+        sessionStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionPayload));
+        // localStorage only keeps user email for auto-fill on next launch
+        localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify({ email, profile }));
     } catch (e) {}
 }
 
 function clearActiveSession() {
     try {
-        localStorage.removeItem(STORAGE_SESSION_KEY);
         sessionStorage.removeItem(STORAGE_SESSION_KEY);
+        localStorage.removeItem(STORAGE_SESSION_KEY);
     } catch (e) {}
 }
 
@@ -308,7 +315,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Clean up any legacy session keys from previous versions
     try {
         localStorage.removeItem('safevault_active_session');
-        sessionStorage.removeItem('safevault_active_session');
     } catch (e) {}
 
     // Initialize quick password generator on load
@@ -317,17 +323,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup global user activity listeners for Auto-Lock
     setupAutoLockActivityTracker();
 
-    // Check for existing saved session email to populate login field
+    // 1. Check for active unlocked session in sessionStorage (preserves state on F5 reload)
     try {
-        const savedSession = localStorage.getItem(STORAGE_SESSION_KEY) || sessionStorage.getItem(STORAGE_SESSION_KEY);
-        if (savedSession) {
-            const parsed = JSON.parse(savedSession);
-            if (parsed && parsed.email) {
-                const loginEmailInput = document.getElementById('login-email');
-                if (loginEmailInput) loginEmailInput.value = parsed.email;
+        const sessionStr = sessionStorage.getItem(STORAGE_SESSION_KEY);
+        if (sessionStr) {
+            const parsed = JSON.parse(sessionStr);
+            if (parsed && parsed.email && (parsed.rawVaultKeyHex || parsed.legacyMasterKey)) {
+                currentUserEmail = parsed.email;
+                if (parsed.profile) currentUserProfile = parsed.profile;
+                if (parsed.legacyMasterKey) legacyMasterKey = parsed.legacyMasterKey;
+                if (parsed.rawVaultKeyHex) {
+                    rawVaultKeyBytes = hexToBytes(parsed.rawVaultKeyHex);
+                    activeVaultKey = await cryptoImportVaultKey(rawVaultKeyBytes);
+                }
+
+                await loadUserVault();
+                showAppDashboard();
+                resetAutoLockTimer();
+                hideSplash();
+                return;
             }
         }
-    } catch (e) {}
+
+        // 2. Otherwise populate login email field from localStorage
+        const localSaved = localStorage.getItem(STORAGE_SESSION_KEY);
+        if (localSaved) {
+            const parsedLocal = JSON.parse(localSaved);
+            if (parsedLocal && parsedLocal.email) {
+                const loginEmailInput = document.getElementById('login-email');
+                if (loginEmailInput) loginEmailInput.value = parsedLocal.email;
+            }
+        }
+    } catch (e) {
+        console.warn('Session restore exception:', e);
+    }
 
     // Check for Supabase Auth state changes
     if (supabaseClient) {
@@ -475,7 +504,8 @@ async function handleUserLogin(e) {
             const kek = await cryptoDeriveWrappingKey(password, meta.vault_salt);
             rawVaultKeyBytes = await cryptoUnwrapVaultKey(meta.wrapped_vault_key_pwd, kek);
             activeVaultKey = await cryptoImportVaultKey(rawVaultKeyBytes);
-            legacyMasterKey = '';
+            // Always keep legacyMasterKey derived in case there are unmigrated V1 database rows
+            legacyMasterKey = deriveLegacyMasterKey(password, email);
         } else {
             // V1 Legacy User: Derive legacy masterKey, unwrap legacy vault, and perform seamless V2 migration
             legacyMasterKey = deriveLegacyMasterKey(password, email);
@@ -1218,14 +1248,19 @@ async function loadUserVault() {
 
             const filteredCloud = cloudAccounts.filter(acc => acc.name || acc.username || acc.password);
 
+            let hasLegacyFormat = false;
+            data.forEach(row => {
+                if (row.name && row.name.startsWith('U2FsdGVk')) hasLegacyFormat = true;
+            });
+
             // Merge cloud accounts with any existing local-only accounts
             const cloudIds = new Set(filteredCloud.map(a => a.id));
             const localOnly = accountsData.filter(a => a.id && !cloudIds.has(a.id));
             accountsData = [...filteredCloud, ...localOnly];
             await saveToLocalStorage();
 
-            // If there were local-only accounts, push them up to cloud
-            if (localOnly.length > 0) {
+            // If there were local-only accounts or legacy ciphertext items, re-encrypt in AES-256-GCM and push to cloud
+            if (localOnly.length > 0 || hasLegacyFormat) {
                 await saveAndSyncVault();
             }
         } else if (accountsData.length > 0) {
