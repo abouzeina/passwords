@@ -3378,69 +3378,149 @@ input[type="range"]::-webkit-slider-thumb:hover {
     }
 
     .account-card {
-        padding: 16px 14px;
-        gap: 12px;
+        padding: 14px;
+        gap: 10px;
         width: 100%;
-        border-radius: var(--radius-sm);
+        border-radius: var(--radius-md);
     }
     .account-card-header {
-        gap: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
         width: 100%;
     }
     .title-area {
+        display: flex;
+        align-items: center;
         gap: 10px;
+        flex: 1;
         min-width: 0;
     }
     .account-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 1.2rem;
+        width: 38px;
+        height: 38px;
+        font-size: 1.1rem;
         border-radius: 8px;
+        flex-shrink: 0;
     }
     .account-title {
-        font-size: 1.05rem;
+        font-size: 0.98rem;
+        font-weight: 700;
         line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     .badge-row {
         gap: 4px;
+        margin-top: 2px;
     }
     .account-ws-badge,
     .account-category-badge {
         font-size: 0.7rem;
         padding: 2px 7px;
     }
+    .card-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        flex-shrink: 0;
+    }
+    .card-top-actions .btn-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 0.85rem;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
     .account-info-row {
         padding: 8px 10px;
-        gap: 6px;
+        gap: 8px;
         font-size: 0.86rem;
         border-radius: 8px;
         width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
     .info-label {
-        font-size: 0.76rem;
+        font-size: 0.78rem;
+        flex-shrink: 0;
+        white-space: nowrap;
+        color: var(--text-muted);
+    }
+    .info-content {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
     }
     .info-val {
         font-size: 0.86rem;
-        max-width: 160px;
+        max-width: 100% !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        direction: ltr;
+        text-align: right;
+    }
+    .info-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+    }
+    .info-actions .btn-icon,
+    .info-content .btn-icon {
+        width: 30px;
+        height: 30px;
+        font-size: 0.82rem;
+        flex-shrink: 0;
     }
 
     .account-card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         padding-top: 10px;
-        gap: 6px;
+        gap: 8px;
         width: 100%;
     }
     .account-card-footer a {
         font-size: 0.8rem;
-        max-width: 130px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-shrink: 1;
     }
     .footer-actions-right {
+        display: flex;
+        align-items: center;
         gap: 6px;
+        flex-shrink: 0;
     }
-    .footer-actions-right .btn-sm {
-        padding: 5px 9px;
-        font-size: 0.78rem;
-        min-height: 34px;
+    .footer-actions-right .btn-share-pill {
+        display: none !important;
+    }
+    .footer-actions-right .link-btn-text {
+        font-size: 0.8rem;
+        font-weight: 700;
+        background: var(--bg-surface-elevated);
+        border: 1px solid var(--border-subtle);
+        padding: 5px 12px;
+        border-radius: var(--radius-full);
+        color: var(--text-primary);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
     }
 
     /* Standalone Profile Page (Mobile Optimization) */
@@ -3485,13 +3565,13 @@ input[type="range"]::-webkit-slider-thumb:hover {
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 14px;
+        padding: 10px;
         margin: 0;
         box-sizing: border-box;
         z-index: 99999;
-        background: rgba(4, 7, 14, 0.8);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
     }
     .modal-overlay.hidden {
         display: none !important;
@@ -3500,8 +3580,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
     .modal-card {
         width: 100% !important;
         max-width: 460px !important;
-        border-radius: 22px !important;
-        padding: 22px 18px !important;
+        border-radius: 20px !important;
+        padding: 20px 16px !important;
         max-height: calc(100dvh - 28px) !important;
         margin: auto !important;
         box-sizing: border-box !important;
@@ -3525,13 +3605,42 @@ input[type="range"]::-webkit-slider-thumb:hover {
         font-size: 1.15rem;
     }
 
-    .ws-drawer-card {
-        max-width: 420px !important;
-        max-height: 80dvh !important;
+    /* Native Bottom Sheet Drawer for Workspaces and Quick Actions */
+    #workspaces-drawer-modal.modal-overlay,
+    #generator-modal.modal-overlay {
+        align-items: flex-end !important;
+        justify-content: center !important;
+        padding: 0 !important;
+        background: rgba(0, 0, 0, 0.65) !important;
+        backdrop-filter: blur(8px) !important;
+    }
+
+    #workspaces-drawer-modal .ws-drawer-card,
+    #generator-modal .generator-modal-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 24px 24px 0 0 !important;
+        border-bottom: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        margin: 0 !important;
+        max-height: 82dvh !important;
+        padding: 22px 18px calc(30px + env(safe-area-inset-bottom)) 18px !important;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6) !important;
+        animation: slideUpBottomSheet 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    @keyframes slideUpBottomSheet {
+        from {
+            transform: translateY(100%);
+        }
+        to {
+            transform: translateY(0);
+        }
     }
 
     .ws-drawer-list {
-        max-height: 48dvh;
+        max-height: 52dvh;
         overflow-y: auto;
         gap: 8px;
         width: 100%;
@@ -3562,7 +3671,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
     .details-modal-card {
         max-width: 480px !important;
-        padding: 22px 18px !important;
+        padding: 20px 16px !important;
         max-height: calc(100dvh - 28px) !important;
     }
 

@@ -2131,7 +2131,6 @@ function renderAccounts() {
                     <div>
                         <div class="account-title">
                             ${escapeHtml(acc.name)}
-                            ${acc.isFavorite ? '<span class="fav-badge-star" title="حساب مثبت في المفضلة"><i class="fa-solid fa-star"></i></span>' : ''}
                         </div>
                         <div class="badge-row">
                             <span class="account-ws-badge"><i class="fa-solid ${wsObj.icon}"></i> ${escapeHtml(wsObj.name)}</span>
