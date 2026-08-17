@@ -1,0 +1,5 @@
+# Ignore local unencrypted backups or temporary files
+*.tmp
+*.log
+.DS_Store
+unencrypted_backup.json

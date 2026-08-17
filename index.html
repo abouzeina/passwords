@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>خزنة كلمات المرور المشفرة | SafeVault PRO</title>
+    
+    <!-- Fast Theme Init Script to avoid FOUC (Flash of Unstyled Content) -->
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('safevault_theme');
+                if (!savedTheme) {
+                    savedTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+                }
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            } catch (e) {}
+        })();
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome 6.5.2 Solid & Brands -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <!-- CryptoJS Library for AES-256 & PBKDF2 Zero-Knowledge Encryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <!-- Supabase JS Client for PostgreSQL Auth & Realtime Sync -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- ==================================================== -->
+    <!-- Authentication & Landing Screen (Login / Register / Reset) -->
+    <!-- ==================================================== -->
+    <div id="auth-overlay" class="modal-overlay auth-backdrop">
+        <!-- Floating Theme Switcher on Auth Screen -->
+        <div class="auth-theme-bar">
+            <button type="button" class="theme-toggle-btn" onclick="toggleTheme()" title="تبديل الثيم الداكن / الفاتح" aria-label="تبديل الثيم">
+                <i class="fa-solid fa-moon theme-moon-icon"></i>
+                <i class="fa-solid fa-sun theme-sun-icon"></i>
+                <span class="theme-text">المظهر</span>
+            </button>
+        </div>
+
+        <div class="modal-card auth-card">
+            <div class="auth-header-logo">
+                <div class="auth-icon-wrapper">
+                    <div class="auth-icon">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <span class="auth-icon-glow"></span>
+                </div>
+                <h2>SafeVault <sup>PRO</sup></h2>
+                <p id="auth-subtitle">خزنة كلمات مرور سحابية مشفرة بتقنية صفر معرفة (Zero-Knowledge)</p>
+            </div>
+
+            <!-- Auth Mode Switch Tabs -->
+            <div class="auth-tabs" id="main-auth-tabs">
+                <button type="button" class="auth-tab-btn active" id="tab-login-btn" onclick="switchAuthMode('login')">
+                    <i class="fa-solid fa-right-to-bracket"></i> تسجيل الدخول
+                </button>
+                <button type="button" class="auth-tab-btn" id="tab-register-btn" onclick="switchAuthMode('register')">
+                    <i class="fa-solid fa-user-plus"></i> إنشاء حساب جديد
+                </button>
+            </div>
+
+            <!-- Form: Login -->
+            <form id="login-form" novalidate onsubmit="handleUserLogin(event)">
+                <div class="input-group">
+                    <label for="login-email"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-envelope input-prefix-icon"></i>
+                        <input type="email" id="login-email" placeholder="name@example.com" required autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <div class="label-with-action">
+                        <label for="login-password"><i class="fa-solid fa-key"></i> كلمة المرور الرئيسية</label>
+                        <button type="button" class="link-btn-text" onclick="showForgotPasswordView()">نسيت كلمة المرور؟</button>
+                    </div>
+                    <div class="password-input-wrapper">
+                        <i class="fa-solid fa-lock input-prefix-icon"></i>
+                        <input type="password" id="login-password" placeholder="أدخل كلمة المرور الرئيسية..." required autocomplete="current-password">
+                        <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('login-password', this)" title="إظهار/إخفاء">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="login-error" class="error-msg hidden"></div>
+
+                <button type="submit" class="btn btn-primary btn-block btn-lg glow-button" id="login-submit-btn">
+                    <i class="fa-solid fa-shield-halved"></i> تسجيل الدخول وفتح الخزنة
+                </button>
+            </form>
+
+            <!-- Form: Register -->
+            <form id="register-form" class="hidden" novalidate onsubmit="handleUserRegister(event)">
+                <div class="input-group">
+                    <label for="reg-fullname"><i class="fa-solid fa-user"></i> الاسم الكامل</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-user input-prefix-icon"></i>
+                        <input type="text" id="reg-fullname" placeholder="مثال: أحمد محمد" required autocomplete="name">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-phone"><i class="fa-solid fa-phone"></i> رقم الهاتف</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-phone input-prefix-icon"></i>
+                        <input type="tel" id="reg-phone" placeholder="مثال: +20 10 1234 5678" required autocomplete="tel">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-email"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-envelope input-prefix-icon"></i>
+                        <input type="email" id="reg-email" placeholder="name@example.com" required autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-password"><i class="fa-solid fa-key"></i> كلمة المرور الرئيسية (Master Password)</label>
+                    <div class="password-input-wrapper">
+                        <i class="fa-solid fa-lock input-prefix-icon"></i>
+                        <input type="password" id="reg-password" placeholder="اختر كلمة مرور رئيسية قوية..." required autocomplete="new-password" oninput="checkPasswordStrength(this.value)">
+                        <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('reg-password', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="pwd-strength-container">
+                        <div class="pwd-strength-bar" id="strength-bar"></div>
+                    </div>
+                    <span class="pwd-strength-text" id="strength-text">قوة كلمة المرور</span>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-confirm-password"><i class="fa-solid fa-shield-halved"></i> تأكيد كلمة المرور الرئيسية</label>
+                    <div class="password-input-wrapper">
+                        <i class="fa-solid fa-check-double input-prefix-icon"></i>
+                        <input type="password" id="reg-confirm-password" placeholder="أعد إدخال كلمة المرور..." required autocomplete="new-password">
+                        <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('reg-confirm-password', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="security-warning-note">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span><strong>ملاحظة أمنية:</strong> سنقوم بإنشاء <strong>مفتاح استرداد طوارئ</strong> خاص بك بعد التسجيل لحماية حساباتك في حال نسيت كلمة المرور.</span>
+                </div>
+
+                <div id="register-error" class="error-msg hidden"></div>
+
+                <button type="submit" class="btn btn-accent btn-block btn-lg glow-button-accent" id="register-submit-btn">
+                    <i class="fa-solid fa-user-shield"></i> إنشاء الحساب وتشفير الخزنة
+                </button>
+            </form>
+
+            <!-- Form: Forgot Password & Recovery -->
+            <div id="forgot-password-view" class="hidden">
+                <div class="reset-card-header">
+                    <button type="button" class="back-to-login-btn" onclick="switchAuthMode('login')">
+                        <i class="fa-solid fa-arrow-right"></i> العودة لتسجيل الدخول
+                    </button>
+                    <h3><i class="fa-solid fa-envelope-open-text"></i> استعادة كلمة المرور</h3>
+                    <p>أدخل بريدك الإلكتروني لإرسال كود التحقق (OTP) لإعادة تعيين كلمة المرور.</p>
+                </div>
+
+                <form id="forgot-send-form" onsubmit="handleSendResetOtp(event)">
+                    <div class="input-group">
+                        <label for="reset-email"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-envelope input-prefix-icon"></i>
+                            <input type="email" id="reset-email" placeholder="name@example.com" required>
+                        </div>
+                    </div>
+
+                    <div id="reset-send-error" class="error-msg hidden"></div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-lg" id="send-otp-btn">
+                        <i class="fa-solid fa-paper-plane"></i> إرسال كود التحقق للإيميل
+                    </button>
+                </form>
+
+                <form id="forgot-verify-form" class="hidden" onsubmit="handleVerifyOtpAndReset(event)">
+                    <div class="success-alert-box">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span>تم إرسال كود التحقق إلى بريدك الإلكتروني! يرجى فحصه وإدخاله بالأسفل.</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="reset-otp-token"><i class="fa-solid fa-shield-halved"></i> كود التحقق (OTP / Token)</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-fingerprint input-prefix-icon"></i>
+                            <input type="text" id="reset-otp-token" placeholder="أدخل الكود المكون من 6 أرقام..." required autocomplete="one-time-code">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="reset-new-password"><i class="fa-solid fa-key"></i> كلمة المرور الرئيسية الجديدة</label>
+                        <div class="password-input-wrapper">
+                            <i class="fa-solid fa-lock input-prefix-icon"></i>
+                            <input type="password" id="reset-new-password" placeholder="أدخل كلمة المرور الجديدة..." required>
+                            <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('reset-new-password', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="reset-verify-error" class="error-msg hidden"></div>
+
+                    <button type="submit" class="btn btn-accent btn-block btn-lg" id="verify-reset-btn">
+                        <i class="fa-solid fa-check-double"></i> تأكيد وتعيين كلمة المرور الجديدة
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Main Application UI (Dashboard with Workspaces) -->
+    <!-- ==================================================== -->
+    <div id="app-container" class="app-container hidden">
+
+        <!-- Top Header Navigation -->
+        <header class="app-header">
+            <div class="header-right-group">
+                <div class="logo">
+                    <div class="logo-icon-box">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <span>SafeVault <sup>PRO</sup></span>
+                </div>
+
+                <!-- User Active Profile Badge (Clickable to open profile) -->
+                <button type="button" class="user-active-badge" id="user-active-badge" onclick="openProfileModal()" title="عرض وتعديل الملف الشخصي">
+                    <div class="user-avatar-mini" id="header-avatar">أ</div>
+                    <div class="user-info-mini">
+                        <span id="header-user-name">المستخدم</span>
+                        <span class="user-status-text">
+                            <span class="status-indicator-dot dot-online" id="header-sync-dot"></span>
+                            <span id="header-sync-label">متزامن سحابياً</span>
+                        </span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down badge-arrow"></i>
+                </button>
+            </div>
+
+            <div class="header-actions">
+                <!-- Theme Toggle Button -->
+                <button type="button" class="btn-theme-toggle" onclick="toggleTheme()" title="تبديل الوضع الداكن / الفاتح" aria-label="تبديل الثيم">
+                    <i class="fa-solid fa-moon theme-moon-icon"></i>
+                    <i class="fa-solid fa-sun theme-sun-icon"></i>
+                </button>
+
+                <button class="btn btn-cloud btn-sm" onclick="syncWithCloudNow()" id="manual-sync-btn" title="مزامنة فورية مع قاعدة البيانات">
+                    <i class="fa-solid fa-rotate"></i> <span class="hide-mobile">مزامنة فورية</span>
+                </button>
+
+                <div class="dropdown-export-group">
+                    <button class="btn btn-secondary btn-sm" onclick="exportEncryptedData()" title="تصدير نسخة مشفرة كاملة">
+                        <i class="fa-solid fa-download"></i> <span class="hide-mobile">تصدير</span>
+                    </button>
+                    <label class="btn btn-secondary btn-sm file-input-label" title="استيراد نسخة احتياطية مشفرة">
+                        <i class="fa-solid fa-upload"></i> <span class="hide-mobile">استيراد</span>
+                        <input type="file" id="import-file" accept=".json" onchange="importEncryptedData(event)" style="display: none;">
+                    </label>
+                </div>
+
+                <button class="btn btn-danger btn-sm" onclick="handleUserLogout()" title="تسجيل الخروج وقفل الخزنة المشفرة">
+                    <i class="fa-solid fa-right-from-bracket"></i> <span class="hide-mobile">خروج</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Layout -->
+        <main class="main-content">
+            <!-- Sidebar / Workspaces & Stats & Controls -->
+            <aside class="sidebar">
+                <!-- Quick Add Account CTA -->
+                <button class="btn btn-accent btn-block btn-lg add-main-btn" onclick="openAddModal()">
+                    <i class="fa-solid fa-plus-circle"></i> إضافة حساب جديد
+                </button>
+
+                <!-- WORKSPACES SECTION (مساحات العمل المخصصة) -->
+                <div class="workspaces-card">
+                    <div class="workspaces-card-header">
+                        <div class="ws-title">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <span>مساحات العمل</span>
+                        </div>
+                        <button type="button" class="btn-create-ws" onclick="openCreateWorkspaceModal()" title="إنشاء مساحة عمل جديدة">
+                            <i class="fa-solid fa-plus"></i> مساحة جديدة
+                        </button>
+                    </div>
+
+                    <!-- Workspaces Navigation List -->
+                    <div class="workspaces-list" id="workspaces-list">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+
+                <!-- Security Health Overview Widget -->
+                <div class="security-card">
+                    <div class="security-card-header">
+                        <div class="sec-title">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <span>فحص أمان الخزنة</span>
+                        </div>
+                        <span class="health-score-badge" id="security-score-badge">100% آمن</span>
+                    </div>
+                    <div class="security-stats-grid">
+                        <div class="sec-stat-item strong">
+                            <span class="sec-stat-num" id="sec-strong-count">0</span>
+                            <span class="sec-stat-lbl"><i class="fa-solid fa-circle-check"></i> قوية</span>
+                        </div>
+                        <div class="sec-stat-item medium">
+                            <span class="sec-stat-num" id="sec-medium-count">0</span>
+                            <span class="sec-stat-lbl"><i class="fa-solid fa-triangle-exclamation"></i> متوسطة</span>
+                        </div>
+                        <div class="sec-stat-item weak">
+                            <span class="sec-stat-num" id="sec-weak-count">0</span>
+                            <span class="sec-stat-lbl"><i class="fa-solid fa-circle-xmark"></i> ضعيفة</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Summary Card -->
+                <div class="stats-card">
+                    <div class="stat-item">
+                        <div class="stat-icon-wrap"><i class="fa-solid fa-key"></i></div>
+                        <div>
+                            <span class="stat-number" id="total-count">0</span>
+                            <span class="stat-label">حسابات المساحة</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon-wrap"><i class="fa-solid fa-folder"></i></div>
+                        <div>
+                            <span class="stat-number" id="workspaces-count">1</span>
+                            <span class="stat-label">مساحات العمل</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Password Generator Card -->
+                <div class="generator-card">
+                    <div class="gen-header">
+                        <h3><i class="fa-solid fa-wand-magic-sparkles"></i> مولد كلمات المرور</h3>
+                        <button type="button" class="btn-icon" title="توليد كلمة سر جديدة" onclick="generateQuickPassword()">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+
+                    <div class="gen-output-box">
+                        <input type="text" id="gen-result" readonly placeholder="اضغط توليد...">
+                        <button class="btn-icon copy-btn-action" title="نسخ كلمة السر" onclick="copyGenPassword()">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+
+                    <div class="gen-controls">
+                        <div class="gen-length-row">
+                            <span>طول كلمة السر:</span>
+                            <span class="length-pill" id="length-val">16</span>
+                        </div>
+                        <input type="range" id="gen-length" min="8" max="40" value="16" oninput="document.getElementById('length-val').innerText = this.value; generateQuickPassword();">
+                    </div>
+
+                    <div class="gen-options-row">
+                        <label class="gen-chip">
+                            <input type="checkbox" id="gen-opt-upper" checked onchange="generateQuickPassword()">
+                            <span>A-Z</span>
+                        </label>
+                        <label class="gen-chip">
+                            <input type="checkbox" id="gen-opt-lower" checked onchange="generateQuickPassword()">
+                            <span>a-z</span>
+                        </label>
+                        <label class="gen-chip">
+                            <input type="checkbox" id="gen-opt-nums" checked onchange="generateQuickPassword()">
+                            <span>0-9</span>
+                        </label>
+                        <label class="gen-chip">
+                            <input type="checkbox" id="gen-opt-syms" checked onchange="generateQuickPassword()">
+                            <span>!@#$</span>
+                        </label>
+                    </div>
+
+                    <button class="btn btn-secondary btn-sm btn-block" onclick="generateQuickPassword()">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> توليد كلمة سر قوية
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Accounts Section -->
+            <section class="accounts-section">
+                <!-- Workspace Active Banner / Filter Bar -->
+                <div class="workspace-banner" id="active-workspace-banner">
+                    <div class="banner-info">
+                        <div class="banner-icon" id="banner-ws-icon">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div>
+                            <h2 id="banner-ws-name">الخزنة الشخصية</h2>
+                            <p id="banner-ws-desc">المساحة النشطة حالياً لإدارة حساباتك وكلمات مرورك المشفرة.</p>
+                        </div>
+                    </div>
+                    <div class="banner-actions" id="banner-ws-actions">
+                        <!-- Actions like delete/edit workspace will appear here for custom workspaces -->
+                    </div>
+                </div>
+
+                <!-- Search & Filters Toolbar -->
+                <div class="filter-toolbar">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="search-input" placeholder="ابحث بأي شيء: الاسم، الإيميل، الباسورد، الرابط، الملاحظات..." oninput="renderAccounts()">
+                        <button type="button" class="clear-search-btn hidden" id="clear-search-btn" onclick="clearSearch()" title="مسح البحث">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <div class="view-and-sort-controls">
+                        <!-- Sort Filter -->
+                        <div class="sort-selector">
+                            <i class="fa-solid fa-arrow-down-wide-short"></i>
+                            <select id="sort-selector" onchange="renderAccounts()" title="ترتيب الحسابات">
+                                <option value="newest">الأحدث إضافة</option>
+                                <option value="alphabetical">أبجدياً (A - Z)</option>
+                                <option value="category">حسب الفئة</option>
+                            </select>
+                        </div>
+
+                        <!-- View Mode Switcher (Grid vs List) -->
+                        <div class="view-mode-switch">
+                            <button type="button" class="view-btn active" id="view-grid-btn" onclick="setViewMode('grid')" title="عرض البطاقات (Grid)">
+                                <i class="fa-solid fa-grip"></i>
+                            </button>
+                            <button type="button" class="view-btn" id="view-list-btn" onclick="setViewMode('list')" title="عرض القائمة (List)">
+                                <i class="fa-solid fa-list"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category Filter Chips -->
+                <div class="category-chips-scroll" id="category-chips-container">
+                    <button type="button" class="category-chip active" data-cat="ALL" onclick="filterByCategory('ALL')">
+                        <i class="fa-solid fa-border-all"></i>
+                        <span>الكل</span>
+                        <span class="chip-count" id="chip-count-all">0</span>
+                    </button>
+                    <button type="button" class="category-chip" data-cat="وسائط إجتماعية" onclick="filterByCategory('وسائط إجتماعية')">
+                        <i class="fa-solid fa-share-nodes"></i>
+                        <span>وسائط إجتماعية</span>
+                    </button>
+                    <button type="button" class="category-chip" data-cat="البريد الإلكتروني" onclick="filterByCategory('البريد الإلكتروني')">
+                        <i class="fa-solid fa-envelope"></i>
+                        <span>البريد الإلكتروني</span>
+                    </button>
+                    <button type="button" class="category-chip" data-cat="بنوك ومدفوعات" onclick="filterByCategory('بنوك ومدفوعات')">
+                        <i class="fa-solid fa-credit-card"></i>
+                        <span>بنوك ومدفوعات</span>
+                    </button>
+                    <button type="button" class="category-chip" data-cat="عمل واستضافة" onclick="filterByCategory('عمل واستضافة')">
+                        <i class="fa-solid fa-server"></i>
+                        <span>عمل واستضافة</span>
+                    </button>
+                    <button type="button" class="category-chip" data-cat="ألعاب وترفيه" onclick="filterByCategory('ألعاب وترفيه')">
+                        <i class="fa-solid fa-gamepad"></i>
+                        <span>ألعاب وترفيه</span>
+                    </button>
+                    <button type="button" class="category-chip" data-cat="أخرى" onclick="filterByCategory('أخرى')">
+                        <i class="fa-solid fa-ellipsis"></i>
+                        <span>أخرى</span>
+                    </button>
+                </div>
+
+                <!-- Hidden select filter kept for sync compatibility -->
+                <select id="category-filter" style="display: none;" onchange="renderAccounts()">
+                    <option value="ALL">جميع الفئات</option>
+                    <option value="وسائط إجتماعية">وسائط إجتماعية</option>
+                    <option value="البريد الإلكتروني">البريد الإلكتروني</option>
+                    <option value="بنوك ومدفوعات">بنوك ومدفوعات</option>
+                    <option value="عمل واستضافة">عمل واستضافة</option>
+                    <option value="ألعاب وترفيه">ألعاب وترفيه</option>
+                    <option value="أخرى">أخرى</option>
+                </select>
+
+                <!-- Cards / List Grid Container -->
+                <div id="accounts-grid" class="accounts-grid view-grid">
+                    <!-- Cards will be populated dynamically via JavaScript -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="empty-state hidden">
+                    <div class="empty-icon-wrap">
+                        <i class="fa-solid fa-folder-open"></i>
+                    </div>
+                    <h3 id="empty-title">لا توجد حسابات في مساحة العمل هذه</h3>
+                    <p id="empty-subtitle">قم بإضافة أول حساب في هذه المساحة لحفظه مشفراً في السحابة بأمان تام.</p>
+                    <button class="btn btn-primary glow-button" onclick="openAddModal()" style="margin-top: 18px;">
+                        <i class="fa-solid fa-plus-circle"></i> إضافة حساب في هذه المساحة
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Modal: Create / Edit Workspace (إنشاء وتعديل مساحة عمل) -->
+    <!-- ==================================================== -->
+    <div id="workspace-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="ws-modal-title"><i class="fa-solid fa-folder-plus"></i> إنشاء مساحة عمل مخصصة جديدة</h3>
+                <button class="close-btn" onclick="closeWorkspaceModal()">&times;</button>
+            </div>
+            <form id="workspace-form" onsubmit="handleWorkspaceSubmit(event)">
+                <input type="hidden" id="ws-id">
+
+                <div class="input-group">
+                    <label for="ws-name-input"><i class="fa-solid fa-tag"></i> اسم مساحة العمل *</label>
+                    <input type="text" id="ws-name-input" placeholder="مثال: الشغل، مشاريع البرمجة، العملاء، البيت..." required>
+                </div>
+
+                <div class="input-group">
+                    <label><i class="fa-solid fa-icons"></i> اختر أيقونة لمساحة العمل</label>
+                    <div class="icon-picker-grid">
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-briefcase" checked><i class="fa-solid fa-briefcase"></i> <span>شغل</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-laptop-code"><i class="fa-solid fa-laptop-code"></i> <span>برمجة</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-building"><i class="fa-solid fa-building"></i> <span>شركة</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-cart-shopping"><i class="fa-solid fa-cart-shopping"></i> <span>متجر</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-user-tie"><i class="fa-solid fa-user-tie"></i> <span>عملاء</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-graduation-cap"><i class="fa-solid fa-graduation-cap"></i> <span>دراسة</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-house"><i class="fa-solid fa-house"></i> <span>شخصي</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-shield-halved"><i class="fa-solid fa-shield-halved"></i> <span>سري</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-server"><i class="fa-solid fa-server"></i> <span>سيرفرات</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-cloud"><i class="fa-solid fa-cloud"></i> <span>سحابي</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-gamepad"><i class="fa-solid fa-gamepad"></i> <span>ألعاب</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-building-columns"><i class="fa-solid fa-building-columns"></i> <span>مالية</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-star"><i class="fa-solid fa-star"></i> <span>مهم</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-rocket"><i class="fa-solid fa-rocket"></i> <span>مشاريع</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-mug-hot"><i class="fa-solid fa-mug-hot"></i> <span>حر/فردي</span></label>
+                        <label class="icon-option"><input type="radio" name="ws-icon" value="fa-key"><i class="fa-solid fa-key"></i> <span>مفاتيح</span></label>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="ws-desc-input"><i class="fa-solid fa-file-lines"></i> وصف مساحة العمل (اختياري)</label>
+                    <textarea id="ws-desc-input" rows="2" placeholder="وصف قصير لتنظيم الحسابات في هذه المساحة..."></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeWorkspaceModal()">إلغاء</button>
+                    <button type="submit" class="btn btn-primary" id="save-ws-btn">
+                        <i class="fa-solid fa-floppy-disk"></i> حفظ مساحة العمل
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Modal: Add / Edit Account Form (with Workspace Picker) -->
+    <!-- ==================================================== -->
+    <div id="account-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-title"><i class="fa-solid fa-plus-circle"></i> إضافة حساب جديد</h3>
+                <button class="close-btn" onclick="closeAccountModal()">&times;</button>
+            </div>
+            <form id="account-form" onsubmit="handleAccountSubmit(event)">
+                <input type="hidden" id="account-id">
+
+                <!-- Workspace Selector Dropdown inside Account Modal -->
+                <div class="input-group">
+                    <label for="acc-workspace"><i class="fa-solid fa-layer-group"></i> مساحة العمل التابع لها الحساب *</label>
+                    <select id="acc-workspace" required>
+                        <!-- Populated dynamically with user's custom workspaces -->
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="acc-name"><i class="fa-solid fa-globe"></i> اسم الخدمة / الموقع *</label>
+                    <input type="text" id="acc-name" placeholder="مثال: Google, GitHub, Slack, Trello, Netflix..." required oninput="previewBrandIcon(this.value)">
+                </div>
+
+                <div class="input-group">
+                    <label for="acc-username"><i class="fa-solid fa-user"></i> اسم المستخدم / البريد الإلكتروني *</label>
+                    <input type="text" id="acc-username" placeholder="مثال: name@work.com" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="acc-password"><i class="fa-solid fa-key"></i> كلمة المرور *</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="acc-password" placeholder="أدخل كلمة المرور..." required oninput="checkAccountModalStrength(this.value)">
+                        <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('acc-password', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn-icon fill-pwd-btn" title="توليد وتعبئة كلمة سر قوية" onclick="fillGeneratedPassword()">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </button>
+                    </div>
+                    <div class="pwd-strength-container" style="margin-top: 6px;">
+                        <div class="pwd-strength-bar" id="modal-strength-bar"></div>
+                    </div>
+                </div>
+
+                <!-- Dynamic Multiple URLs Input Section -->
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
+                        <label style="margin: 0;"><i class="fa-solid fa-link"></i> روابط الموقع / لوحة التحكم (اختياري)</label>
+                        <button type="button" class="btn-link-sm" onclick="addUrlInputField()" style="background: none; border: none; color: var(--primary-light); cursor: pointer; font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="fa-solid fa-plus-circle"></i> إضافة رابط آخر
+                        </button>
+                    </div>
+                    <div id="urls-input-list" style="display: flex; flex-direction: column; gap: 8px;">
+                        <div class="url-input-row" style="display: flex; gap: 8px; align-items: center;">
+                            <input type="url" class="acc-url-field" placeholder="مثال: https://example.com/wp-admin" style="flex: 1;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="acc-category"><i class="fa-solid fa-layer-group"></i> الفئة</label>
+                    <select id="acc-category">
+                        <option value="عمل واستضافة">عمل واستضافة</option>
+                        <option value="البريد الإلكتروني">البريد الإلكتروني</option>
+                        <option value="بنوك ومدفوعات">بنوك ومدفوعات</option>
+                        <option value="وسائط إجتماعية">وسائط إجتماعية</option>
+                        <option value="ألعاب وترفيه">ألعاب وترفيه</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="acc-notes"><i class="fa-solid fa-note-sticky"></i> ملاحظات إضافية (اختياري)</label>
+                    <textarea id="acc-notes" rows="3" placeholder="أضف أي تفاصيل خاصة بالحساب، أسئلة أمان، أكواد استرداد..."></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAccountModal()">إلغاء</button>
+                    <button type="submit" class="btn btn-primary glow-button" id="save-account-btn">
+                        <i class="fa-solid fa-floppy-disk"></i> حفظ الحساب مشفراً
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Modal: Account Full Details (نافذة تفاصيل الحساب الكاملة) -->
+    <!-- ==================================================== -->
+    <div id="account-details-modal" class="modal-overlay hidden">
+        <div class="modal-card details-modal-card">
+            <div class="details-modal-header">
+                <div class="details-header-info">
+                    <div class="details-brand-icon" id="det-brand-icon">
+                        <i class="fa-solid fa-key"></i>
+                    </div>
+                    <div>
+                        <h2 class="det-title" id="det-name">اسم الحساب</h2>
+                        <div class="badge-row">
+                            <span class="account-ws-badge" id="det-ws-badge"><i class="fa-solid fa-house"></i> الخزنة الشخصية</span>
+                            <span class="account-category-badge" id="det-cat-badge">وسائط إجتماعية</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="close-btn" onclick="closeAccountDetailsModal()">&times;</button>
+            </div>
+
+            <div class="details-modal-body">
+                <!-- Website URLs Dynamic Container (يدعم رابط أو عدة روابط) -->
+                <div id="det-urls-container" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Injected dynamically via JS -->
+                </div>
+
+                <!-- Username / Email Field Card -->
+                <div class="details-field-card">
+                    <div class="field-meta">
+                        <span class="field-label"><i class="fa-solid fa-user"></i> اسم المستخدم / البريد الإلكتروني</span>
+                    </div>
+                    <div class="field-value-row">
+                        <span class="field-text-val selectable font-mono" id="det-username">user@example.com</span>
+                        <button type="button" class="btn-icon copy-btn-action" title="نسخ اسم المستخدم" onclick="copyDetailField('det-username', this)">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Password Field Card -->
+                <div class="details-field-card">
+                    <div class="field-meta">
+                        <span class="field-label"><i class="fa-solid fa-key"></i> كلمة المرور المشفرة</span>
+                        <span class="det-strength-tag" id="det-pwd-strength">قوية 🛡️</span>
+                    </div>
+                    <div class="field-value-row">
+                        <span class="field-text-val font-mono" id="det-password-display">••••••••••••</span>
+                        <div class="field-actions">
+                            <button type="button" class="btn-icon" title="إظهار/إخفاء" id="det-toggle-pwd-btn" onclick="toggleDetailsPassword()">
+                                <i class="fa-solid fa-eye" id="det-eye-icon"></i>
+                            </button>
+                            <button type="button" class="btn-icon copy-btn-action" title="نسخ كلمة السر" onclick="copyDetailPassword(this)">
+                                <i class="fa-solid fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes Card -->
+                <div class="details-field-card notes-card" id="det-notes-card">
+                    <div class="field-meta">
+                        <span class="field-label"><i class="fa-solid fa-note-sticky"></i> ملاحظات ومعلومات إضافية</span>
+                        <button type="button" class="btn-icon copy-btn-action" title="نسخ الملاحظات" onclick="copyDetailField('det-notes-text', this)">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                    <p class="det-notes-content" id="det-notes-text"></p>
+                </div>
+            </div>
+
+            <!-- Footer Action Toolbar -->
+            <div class="details-modal-footer">
+                <button type="button" class="btn btn-secondary" id="det-copy-all-btn" style="color: var(--accent-emerald);">
+                    <i class="fa-solid fa-copy"></i> نسخ كل البيانات
+                </button>
+                <button type="button" class="btn btn-secondary" id="det-share-btn" style="color: var(--primary-light);">
+                    <i class="fa-solid fa-share-nodes"></i> مشاركة
+                </button>
+                <button type="button" class="btn btn-secondary" id="det-edit-btn">
+                    <i class="fa-solid fa-pen-to-square"></i> تعديل
+                </button>
+                <button type="button" class="btn btn-danger" id="det-delete-btn">
+                    <i class="fa-solid fa-trash-can"></i> حذف
+                </button>
+                <button type="button" class="btn btn-primary" onclick="closeAccountDetailsModal()">
+                    <i class="fa-solid fa-check"></i> إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Modal: User Profile (الملف الشخصي) -->
+    <!-- ==================================================== -->
+    <div id="profile-modal" class="modal-overlay hidden">
+        <div class="modal-card profile-modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-id-card"></i> الملف الشخصي والحساب</h3>
+                <button class="close-btn" onclick="closeProfileModal()">&times;</button>
+            </div>
+
+            <div class="profile-header-banner">
+                <div class="profile-avatar-large" id="profile-avatar-large">أ</div>
+                <div class="profile-info-text">
+                    <h3 id="profile-display-name">اسم المستخدم</h3>
+                    <span id="profile-display-email">user@example.com</span>
+                    <div class="profile-plan-badge"><i class="fa-solid fa-shield-halved"></i> حساب مشفر سحابياً (Zero-Knowledge)</div>
+                </div>
+            </div>
+
+            <form id="profile-edit-form" novalidate onsubmit="handleProfileUpdate(event)">
+                <div class="input-group">
+                    <label for="prof-fullname"><i class="fa-solid fa-user"></i> الاسم الكامل</label>
+                    <input type="text" id="prof-fullname" placeholder="الاسم الكامل..." required>
+                </div>
+
+                <div class="input-group">
+                    <label for="prof-phone"><i class="fa-solid fa-phone"></i> رقم الهاتف</label>
+                    <input type="tel" id="prof-phone" placeholder="رقم الهاتف..." required>
+                </div>
+
+                <div class="input-group">
+                    <label for="prof-email-readonly"><i class="fa-solid fa-envelope"></i> البريد الإلكتروني (مرتبط بالحساب)</label>
+                    <input type="email" id="prof-email-readonly" readonly disabled style="opacity: 0.7; cursor: not-allowed;">
+                </div>
+
+                <!-- Emergency Key Shortcut in Profile -->
+                <div class="profile-recovery-section">
+                    <div class="prof-rec-header">
+                        <span><i class="fa-solid fa-key" style="color: var(--accent-emerald);"></i> مفتاح استرداد الطوارئ:</span>
+                        <button type="button" class="btn-icon copy-btn-action" title="نسخ المفتاح" onclick="copyUserRecoveryKey()">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                    <div class="prof-rec-val" id="profile-recovery-val">SV-••••-••••-••••-••••</div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeProfileModal()">إغلاق</button>
+                    <button type="submit" class="btn btn-primary" id="save-profile-btn">
+                        <i class="fa-solid fa-user-check"></i> حفظ بيانات الملف الشخصي
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Custom Modern Confirmation / Alert Popup Dialog -->
+    <!-- ==================================================== -->
+    <div id="custom-dialog-modal" class="modal-overlay hidden">
+        <div class="modal-card custom-dialog-card">
+            <div class="dialog-icon-wrapper" id="dialog-icon-wrap">
+                <i class="fa-solid fa-triangle-exclamation" id="dialog-icon"></i>
+            </div>
+            <h3 id="dialog-title">تأكيد الإجراء</h3>
+            <p id="dialog-message">هل أنت متأكد من رغبتك في تنفيذ هذا الإجراء؟</p>
+            <div class="dialog-actions">
+                <button type="button" class="btn btn-secondary" id="dialog-cancel-btn">إلغاء</button>
+                <button type="button" class="btn btn-danger" id="dialog-confirm-btn">تأكيد</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden">
+        <i class="fa-solid fa-circle-check" id="toast-icon"></i>
+        <span id="toast-message">تمت العملية بنجاح!</span>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
