@@ -305,6 +305,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     initSupabase();
 
+    // Clean up any legacy session keys from previous versions
+    try {
+        localStorage.removeItem('safevault_active_session');
+        sessionStorage.removeItem('safevault_active_session');
+    } catch (e) {}
+
     // Initialize quick password generator on load
     generateQuickPassword();
 
@@ -337,7 +343,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
+
+    // Dismiss splash screen smoothly
+    hideSplash();
 });
+
+function hideSplash() {
+    const splash = document.getElementById('app-splash');
+    if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(() => {
+            splash.remove();
+        }, 350);
+    }
+}
 
 // ==========================================
 // Supabase Client Management

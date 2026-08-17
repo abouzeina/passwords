@@ -31,9 +31,20 @@
     <!-- Supabase JS Client for PostgreSQL Auth & Realtime Sync -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=2.2.0">
 </head>
 <body>
+
+    <!-- App Initialization Splash Screen (Zero-Flicker) -->
+    <div id="app-splash" class="app-splash">
+        <div class="splash-content">
+            <div class="splash-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h2>SafeVault <sup>PRO</sup></h2>
+            <div class="splash-spinner"></div>
+        </div>
+    </div>
 
     <!-- ==================================================== -->
     <!-- Authentication & Landing Screen (Login / Register / Reset) -->
@@ -57,7 +68,7 @@
                     <span class="auth-icon-glow"></span>
                 </div>
                 <h2>SafeVault <sup>PRO</sup></h2>
-                <p id="auth-subtitle">خزنة كلمات مرور مشفرة بتقنية صفر معرفة (Zero-Knowledge)</p>
+                <p id="auth-subtitle">خزنة كلمات مرور سحابية مشفرة بتقنية <bdi dir="ltr">(Zero-Knowledge)</bdi></p>
             </div>
 
             <!-- Auth Mode Switch Tabs -->
@@ -865,6 +876,6 @@
         <span id="toast-message">تمت العملية بنجاح!</span>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=2.2.0"></script>
 </body>
 </html>
