@@ -1041,6 +1041,9 @@ async function syncWithCloudNow() {
     }
 }
 
+let backgroundSyncTimer = null;
+let syncListenersInitialized = false;
+
 function setupRealtimeSync() {
     if (!supabaseClient) return;
     if (realtimeSubscription) supabaseClient.removeChannel(realtimeSubscription);
@@ -1067,6 +1070,36 @@ function setupRealtimeSync() {
             )
             .subscribe();
     });
+
+    // Start 30-second continuous background sync loop
+    if (backgroundSyncTimer) clearInterval(backgroundSyncTimer);
+    backgroundSyncTimer = setInterval(async () => {
+        if (currentUserEmail && masterKey && supabaseClient) {
+            await saveAndSyncVault();
+        }
+    }, 30000);
+
+    // Initialize auto-sync event listeners once
+    if (!syncListenersInitialized) {
+        syncListenersInitialized = true;
+
+        // Auto-sync when internet reconnects
+        window.addEventListener('online', async () => {
+            if (currentUserEmail && masterKey && supabaseClient) {
+                showToast('تم استعادة الاتصال بالإنترنت، جاري المزامنة... 🌐');
+                await syncWithCloudNow();
+            }
+        });
+
+        // Auto-sync when returning to the tab
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && currentUserEmail && masterKey && supabaseClient) {
+                await loadUserVault();
+                renderWorkspacesList();
+                renderAccounts();
+            }
+        });
+    }
 }
 
 // ==========================================
