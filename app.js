@@ -63,7 +63,14 @@ function escapeHtml(str) {
 }
 
 function generateUUID() {
-    return 'id-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now().toString(36);
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 }
 
 // ==========================================
@@ -837,11 +844,18 @@ async function deleteWorkspace(wsId) {
 async function loadUserVault() {
     loadFromLocalStorage();
 
-    if (!supabaseClient) return;
+    if (!supabaseClient || !masterKey) return;
 
     try {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (!user) return;
+
+        // Restore custom workspaces from user metadata if available
+        if (user.user_metadata && Array.isArray(user.user_metadata.workspaces) && user.user_metadata.workspaces.length > 0) {
+            userWorkspaces = user.user_metadata.workspaces;
+            const wsKey = STORAGE_WORKSPACES_PREFIX + currentUserEmail;
+            localStorage.setItem(wsKey, JSON.stringify(userWorkspaces));
+        }
 
         const { data, error } = await supabaseClient
             .from('vault_items')
@@ -855,7 +869,7 @@ async function loadUserVault() {
         }
 
         if (data && data.length > 0) {
-            accountsData = data.map(row => ({
+            const cloudAccounts = data.map(row => ({
                 id: row.id,
                 workspaceId: decryptText(row.category)?.startsWith('ws-') ? decryptText(row.category) : (row.notes && decryptText(row.notes).includes('__WS__') ? decryptText(row.notes).split('__WS__')[1] : 'ws-personal'),
                 name: decryptText(row.name),
@@ -864,8 +878,21 @@ async function loadUserVault() {
                 url: decryptText(row.url),
                 category: (row.notes && decryptText(row.notes).includes('__CAT__')) ? decryptText(row.notes).split('__CAT__')[1].split('__WS__')[0] : decryptText(row.category) || 'أخرى',
                 notes: (row.notes && decryptText(row.notes).includes('__NOTES__')) ? decryptText(row.notes).split('__NOTES__')[1].split('__CAT__')[0] : decryptText(row.notes)
-            }));
+            })).filter(acc => acc.name || acc.username || acc.password);
+
+            // Merge cloud accounts with any existing local-only accounts
+            const cloudIds = new Set(cloudAccounts.map(a => a.id));
+            const localOnly = accountsData.filter(a => a.id && !cloudIds.has(a.id));
+            accountsData = [...cloudAccounts, ...localOnly];
             saveToLocalStorage();
+
+            // If there were local-only accounts, push them up to cloud
+            if (localOnly.length > 0) {
+                await saveAndSyncVault();
+            }
+        } else if (accountsData.length > 0) {
+            // Local accounts exist but cloud has none yet -> upload them
+            await saveAndSyncVault();
         }
     } catch (e) {
         console.error('Vault load exception:', e);
@@ -915,7 +942,7 @@ function saveToLocalStorage() {
 
 async function saveAndSyncVault() {
     saveToLocalStorage();
-    if (!supabaseClient) return;
+    if (!supabaseClient || !currentUserEmail || !masterKey) return;
 
     const syncDot = document.getElementById('header-sync-dot');
     const syncLabel = document.getElementById('header-sync-label');
@@ -924,35 +951,70 @@ async function saveAndSyncVault() {
 
     try {
         const { data: { user } } = await supabaseClient.auth.getUser();
-        if (!user) return;
+        if (!user) {
+            if (syncDot) syncDot.className = 'status-indicator-dot dot-offline';
+            if (syncLabel) syncLabel.innerText = 'حفظ محلي';
+            return;
+        }
 
-        const recordsToUpsert = accountsData.map(acc => {
-            const combinedNotes = `__NOTES__${acc.notes || ''}__CAT__${acc.category || 'أخرى'}__WS__${acc.workspaceId || 'ws-personal'}`;
-            return {
-                id: (acc.id && acc.id.includes('-') && acc.id.length >= 32) ? acc.id : undefined,
-                user_id: user.id,
-                name: encryptText(acc.name),
-                username: encryptText(acc.username),
-                password: encryptText(acc.password),
-                url: encryptText(acc.url || ''),
-                category: encryptText(acc.category || 'أخرى'),
-                notes: encryptText(combinedNotes),
-                updated_at: new Date().toISOString()
-            };
+        // Ensure all accounts have a valid UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        let idUpdated = false;
+        accountsData.forEach(acc => {
+            if (!acc.id || !uuidRegex.test(acc.id)) {
+                acc.id = generateUUID();
+                idUpdated = true;
+            }
         });
+        if (idUpdated) {
+            saveToLocalStorage();
+        }
 
-        if (recordsToUpsert.length > 0) {
+        if (accountsData.length > 0) {
+            const recordsToUpsert = accountsData.map(acc => {
+                const combinedNotes = `__NOTES__${acc.notes || ''}__CAT__${acc.category || 'أخرى'}__WS__${acc.workspaceId || 'ws-personal'}`;
+                return {
+                    id: acc.id,
+                    user_id: user.id,
+                    name: encryptText(acc.name),
+                    username: encryptText(acc.username),
+                    password: encryptText(acc.password),
+                    url: encryptText(acc.url || ''),
+                    category: encryptText(acc.category || 'أخرى'),
+                    notes: encryptText(combinedNotes),
+                    updated_at: new Date().toISOString()
+                };
+            });
+
             const { error } = await supabaseClient
                 .from('vault_items')
                 .upsert(recordsToUpsert, { onConflict: 'id' });
 
-            if (error) console.warn('Supabase upsert warning:', error);
+            if (error) {
+                console.error('Supabase upsert error:', error);
+                if (syncDot) syncDot.className = 'status-indicator-dot dot-offline';
+                if (syncLabel) syncLabel.innerText = 'خطأ مزامنة سحابية';
+                return false;
+            }
         }
-    } catch (e) {
-        console.warn('Error during cloud sync:', e);
-    } finally {
+
+        // Sync workspaces to Supabase Auth metadata
+        try {
+            await supabaseClient.auth.updateUser({
+                data: { workspaces: userWorkspaces }
+            });
+        } catch (wsErr) {
+            console.warn('Workspace sync warning:', wsErr);
+        }
+
         if (syncDot) syncDot.className = 'status-indicator-dot dot-online';
         if (syncLabel) syncLabel.innerText = 'متزامن سحابياً';
+        return true;
+    } catch (e) {
+        console.error('Error during cloud sync:', e);
+        if (syncDot) syncDot.className = 'status-indicator-dot dot-offline';
+        if (syncLabel) syncLabel.innerText = 'خطأ مزامنة';
+        return false;
     }
 }
 
@@ -961,11 +1023,22 @@ async function syncWithCloudNow() {
         showToast('التطبيق في الوضع المحلي');
         return;
     }
-    showToast('جاري المزامنة مع قاعدة بيانات PostgreSQL... 🔄');
-    await loadUserVault();
-    renderWorkspacesList();
-    renderAccounts();
-    showToast('تمت المزامنة السحابية بنجاح! ☁️');
+    const syncDot = document.getElementById('header-sync-dot');
+    const syncLabel = document.getElementById('header-sync-label');
+    if (syncDot) syncDot.className = 'status-indicator-dot dot-syncing';
+    if (syncLabel) syncLabel.innerText = 'جاري المزامنة...';
+
+    showToast('جاري مزامنة ورفع البيانات... 🔄');
+    try {
+        await saveAndSyncVault();
+        await loadUserVault();
+        renderWorkspacesList();
+        renderAccounts();
+        showToast('تمت المزامنة وحفظ البيانات سحابياً بنجاح! ☁️✨');
+    } catch (e) {
+        console.error('Manual sync failed:', e);
+        showToast('تعذر إتمام المزامنة السحابية ⚠️');
+    }
 }
 
 function setupRealtimeSync() {
