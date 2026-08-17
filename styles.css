@@ -2430,51 +2430,503 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 /* ==========================================
-   16. RESPONSIVE DESIGN (MOBILE & TABLET)
+   16. MOBILE BOTTOM NAVIGATION & MODAL DRAWERS
    ========================================== */
 
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(62px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--bg-glass);
+    backdrop-filter: var(--glass-blur);
+    border-top: 1px solid var(--border-subtle);
+    z-index: 1000;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 6px 4px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    flex: 1;
+    min-width: 0;
+    min-height: 46px;
+}
+.mobile-nav-item i {
+    font-size: 1.2rem;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mobile-nav-item.active {
+    color: var(--primary-light);
+}
+.mobile-nav-item.active i {
+    transform: translateY(-2px);
+    color: var(--primary-light);
+}
+
+.mobile-nav-fab {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent-emerald-gradient);
+    color: #ffffff;
+    border: 3px solid var(--bg-surface);
+    box-shadow: var(--glow-emerald);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    cursor: pointer;
+    transform: translateY(-12px);
+    transition: var(--transition-smooth);
+    flex-shrink: 0;
+}
+.mobile-nav-fab:active {
+    transform: translateY(-8px) scale(0.92);
+}
+
+/* --- Mobile Workspaces Drawer --- */
+.ws-drawer-card {
+    max-height: 80dvh;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.ws-drawer-actions {
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.ws-drawer-list {
+    max-height: 52dvh;
+    overflow-y: auto;
+    gap: 8px;
+}
+.ws-drawer-list .ws-item-btn {
+    padding: 12px 14px;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+}
+.ws-drawer-list .ws-item-btn.active {
+    border-color: var(--primary);
+    background: var(--bg-tag);
+}
+
+/* --- Generator Modal Card --- */
+.generator-modal-card {
+    max-width: 460px;
+    padding: 24px;
+}
+
+/* ==========================================
+   17. COMPREHENSIVE RESPONSIVE DESIGN (320px - 1024px+)
+   ========================================== */
+
+/* --- Tablet Breakpoint (769px - 1024px) --- */
 @media (max-width: 1024px) {
     .main-content {
-        grid-template-columns: 1fr;
+        grid-template-columns: 280px 1fr;
+        gap: 20px;
         padding: 20px;
     }
 
-    .sidebar {
-        order: 2;
-    }
-
-    .accounts-section {
-        order: 1;
+    .accounts-grid.view-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
     }
 }
 
+/* --- Mobile Breakpoint (< 768px) --- */
 @media (max-width: 768px) {
-    .app-header {
-        padding: 10px 16px;
+    body {
+        padding-bottom: calc(68px + env(safe-area-inset-bottom));
+    }
+
+    .mobile-bottom-nav {
+        display: flex;
+    }
+
+    /* Hide desktop sidebar on mobile; bottom nav & drawers take over */
+    .sidebar {
+        display: none !important;
     }
 
     .hide-mobile {
         display: none !important;
     }
 
+    /* Top App Header */
+    .app-header {
+        padding: 10px 14px;
+        gap: 8px;
+    }
+
+    .header-right-group {
+        gap: 10px;
+    }
+
+    .logo {
+        font-size: 1.15rem;
+        gap: 8px;
+    }
+    .logo-icon-box {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+        border-radius: 8px;
+    }
+
+    .user-info-mini {
+        display: none;
+    }
+    .badge-arrow {
+        display: none;
+    }
+    .user-active-badge {
+        padding: 4px;
+        border: none;
+        background: transparent;
+    }
+    .user-avatar-mini {
+        width: 34px;
+        height: 34px;
+        font-size: 0.95rem;
+    }
+
+    .header-actions {
+        gap: 6px;
+    }
+    .dropdown-export-group {
+        display: none;
+    }
+    #manual-sync-btn {
+        display: none;
+    }
+
+    /* Main Container */
+    .main-content {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        padding: 12px 14px;
+    }
+
+    .accounts-section {
+        gap: 14px;
+        width: 100%;
+    }
+
+    /* Workspace Active Banner */
+    .workspace-banner {
+        padding: 14px 16px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        border-radius: var(--radius-sm);
+    }
+    .banner-info {
+        gap: 12px;
+        width: 100%;
+    }
+    .banner-icon {
+        width: 42px;
+        height: 42px;
+        font-size: 1.2rem;
+        border-radius: var(--radius-sm);
+    }
+    .banner-info h2 {
+        font-size: 1.15rem;
+        margin-bottom: 2px;
+    }
+    .banner-info p {
+        font-size: 0.8rem;
+        line-height: 1.35;
+    }
+    .banner-actions {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: 2px;
+    }
+
+    /* Filter & Search Toolbar */
     .filter-toolbar {
         flex-direction: column;
         align-items: stretch;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .search-box {
+        width: 100%;
+    }
+    .search-box input {
+        height: 44px;
+        font-size: 0.88rem;
+        padding-right: 40px;
+        padding-left: 34px;
+    }
+    .search-icon {
+        right: 14px;
     }
 
     .view-and-sort-controls {
+        width: 100%;
+        display: flex;
+        gap: 8px;
         justify-content: space-between;
     }
-
-    .accounts-grid.view-grid {
-        grid-template-columns: 1fr;
+    .sort-selector {
+        flex: 1;
+        min-width: 0;
+    }
+    .sort-selector select {
+        width: 100%;
+        height: 40px;
+        font-size: 0.84rem;
+        padding-right: 32px;
+    }
+    .view-mode-switch {
+        display: none; /* Optimized single column card view on mobile */
     }
 
-    .accounts-grid.view-list .account-card {
+    /* Category Filter Chips */
+    .category-chips-scroll {
+        gap: 6px;
+        padding-bottom: 4px;
+        width: 100%;
+    }
+    .category-chip {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        min-height: 36px;
+        gap: 6px;
+    }
+
+    /* Account Cards (1 Column on Mobile) */
+    .accounts-grid.view-grid,
+    .accounts-grid.view-list {
+        display: grid;
         grid-template-columns: 1fr;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .account-card {
+        padding: 16px 14px;
+        gap: 12px;
+        width: 100%;
+        border-radius: var(--radius-sm);
+    }
+    .account-card-header {
+        gap: 10px;
+        width: 100%;
+    }
+    .title-area {
+        gap: 10px;
+        min-width: 0;
+    }
+    .account-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+        border-radius: 8px;
+    }
+    .account-title {
+        font-size: 1.05rem;
+        line-height: 1.3;
+    }
+    .badge-row {
+        gap: 4px;
+    }
+    .account-ws-badge,
+    .account-category-badge {
+        font-size: 0.7rem;
+        padding: 2px 7px;
+    }
+
+    .account-info-row {
+        padding: 8px 10px;
+        gap: 6px;
+        font-size: 0.86rem;
+        border-radius: 8px;
+        width: 100%;
+    }
+    .info-label {
+        font-size: 0.76rem;
+    }
+    .info-val {
+        font-size: 0.86rem;
+        max-width: 160px;
+    }
+
+    .account-card-footer {
+        padding-top: 10px;
+        gap: 6px;
+        width: 100%;
+    }
+    .account-card-footer a {
+        font-size: 0.8rem;
+        max-width: 130px;
+    }
+    .footer-actions-right {
+        gap: 6px;
+    }
+    .footer-actions-right .btn-sm {
+        padding: 5px 9px;
+        font-size: 0.78rem;
+        min-height: 34px;
+    }
+
+    /* Modals & Dialogs (Bottom Sheet Mobile UX) */
+    .modal-overlay {
+        align-items: flex-end;
+        padding: 0;
     }
 
     .modal-card {
-        padding: 20px;
+        width: 100%;
+        max-width: 100%;
+        border-radius: 22px 22px 0 0;
+        padding: 20px 16px calc(24px + env(safe-area-inset-bottom)) 16px;
+        max-height: 88dvh;
+        margin: 0;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+        animation: toastSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-header h3 {
+        font-size: 1.15rem;
+    }
+
+    .details-modal-card {
+        padding: 20px 16px calc(24px + env(safe-area-inset-bottom)) 16px;
+    }
+    .details-modal-footer {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+    }
+    .details-modal-footer .btn {
+        width: 100%;
+        min-height: 42px;
+        font-size: 0.86rem;
+        justify-content: center;
+    }
+    .details-modal-footer .btn-primary {
+        grid-column: span 2;
+    }
+}
+
+/* --- Mobile Small Breakpoint (< 480px) --- */
+@media (max-width: 480px) {
+    .auth-backdrop {
+        padding: 16px 12px;
+    }
+
+    .auth-card {
+        padding: 20px 14px;
+        border-radius: var(--radius-md);
+        width: 100%;
+    }
+
+    .auth-header-logo h2 {
+        font-size: 1.55rem;
+    }
+
+    .auth-tabs {
+        margin-bottom: 16px;
+        gap: 4px;
+    }
+    .auth-tab-btn {
+        font-size: 0.82rem;
+        padding: 8px 4px;
+        gap: 4px;
+    }
+
+    .input-group {
+        margin-bottom: 12px;
+    }
+    .input-group label {
+        font-size: 0.82rem;
+    }
+    .input-prefix-icon {
+        right: 12px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="url"],
+    input[type="tel"],
+    select {
+        font-size: 0.88rem;
+        height: 44px;
+    }
+
+    .icon-picker-grid {
+        grid-template-columns: repeat(4, 1fr);
+        max-height: 150px;
+    }
+
+    .profile-header-banner {
+        padding: 14px;
+        gap: 12px;
+    }
+    .profile-avatar-large {
+        width: 52px;
+        height: 52px;
+        font-size: 1.5rem;
+    }
+}
+
+/* --- Ultra-Compact Breakpoint (320px - 360px: iPhone SE & Mini) --- */
+@media (max-width: 360px) {
+    .app-header {
+        padding: 8px 10px;
+    }
+    .logo span {
+        font-size: 1.02rem;
+    }
+    .info-val {
+        max-width: 105px;
+    }
+    .account-card-footer a {
+        max-width: 90px;
+    }
+    .icon-picker-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .modal-card {
+        padding: 16px 12px calc(20px + env(safe-area-inset-bottom)) 12px;
+    }
+    .details-header-info {
+        gap: 10px;
+    }
+    .details-brand-icon {
+        width: 44px;
+        height: 44px;
+        font-size: 1.25rem;
+    }
+    .det-title {
+        font-size: 1.1rem;
+    }
+    .auth-tab-btn span {
+        display: none;
     }
 }

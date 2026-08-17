@@ -2527,3 +2527,112 @@ function showToast(msg) {
         toast.classList.add('hidden');
     }, 3000);
 }
+
+// ==========================================
+// Mobile Bottom Navigation & Drawers Handlers
+// ==========================================
+function handleMobileNav(tab) {
+    const navItems = document.querySelectorAll('.mobile-nav-item');
+    navItems.forEach(item => item.classList.remove('active'));
+    const target = document.getElementById(`mob-nav-${tab}`);
+    if (target) target.classList.add('active');
+
+    if (tab === 'vault') {
+        switchWorkspace('ALL');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function openWorkspacesDrawer() {
+    renderDrawerWorkspacesList();
+    document.getElementById('workspaces-drawer-modal').classList.remove('hidden');
+}
+
+function closeWorkspacesDrawer() {
+    document.getElementById('workspaces-drawer-modal').classList.add('hidden');
+}
+
+function renderDrawerWorkspacesList() {
+    const listEl = document.getElementById('ws-drawer-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    // 1. "All Accounts"
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = `ws-item-btn ${activeWorkspaceId === 'ALL' ? 'active' : ''}`;
+    allBtn.innerHTML = `
+        <div class="ws-info-left">
+            <i class="fa-solid fa-border-all"></i>
+            <span>جميع الحسابات</span>
+        </div>
+        <span class="ws-count-badge">${accountsData.length}</span>
+    `;
+    allBtn.onclick = () => {
+        switchWorkspace('ALL');
+        closeWorkspacesDrawer();
+    };
+    listEl.appendChild(allBtn);
+
+    // 2. Custom Workspaces
+    userWorkspaces.forEach(ws => {
+        const count = accountsData.filter(a => (a.workspaceId || 'ws-personal') === ws.id).length;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `ws-item-btn ${activeWorkspaceId === ws.id ? 'active' : ''}`;
+        btn.innerHTML = `
+            <div class="ws-info-left">
+                <i class="fa-solid ${ws.icon || 'fa-folder'}"></i>
+                <span>${escapeHtml(ws.name)}</span>
+            </div>
+            <span class="ws-count-badge">${count}</span>
+        `;
+        btn.onclick = () => {
+            switchWorkspace(ws.id);
+            closeWorkspacesDrawer();
+        };
+        listEl.appendChild(btn);
+    });
+}
+
+function openGeneratorModal() {
+    generateQuickPasswordModal();
+    document.getElementById('generator-modal').classList.remove('hidden');
+}
+
+function closeGeneratorModal() {
+    document.getElementById('generator-modal').classList.add('hidden');
+}
+
+function generateQuickPasswordModal() {
+    const lengthInput = document.getElementById('gen-length-modal');
+    const length = lengthInput ? (parseInt(lengthInput.value) || 16) : 16;
+
+    const useUpper = document.getElementById('gen-opt-upper-modal')?.checked ?? true;
+    const useLower = document.getElementById('gen-opt-lower-modal')?.checked ?? true;
+    const useNums = document.getElementById('gen-opt-nums-modal')?.checked ?? true;
+    const useSyms = document.getElementById('gen-opt-syms-modal')?.checked ?? true;
+
+    let charPool = '';
+    if (useUpper) charPool += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (useLower) charPool += 'abcdefghijklmnopqrstuvwxyz';
+    if (useNums) charPool += '0123456789';
+    if (useSyms) charPool += '!@#$%^&*()_+~|}{[]:;?><,.-=';
+
+    if (!charPool) charPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+
+    let pwd = '';
+    const array = new Uint32Array(length);
+    window.crypto.getRandomValues(array);
+    for (let i = 0; i < length; i++) {
+        pwd += charPool.charAt(array[i] % charPool.length);
+    }
+
+    const genResult = document.getElementById('gen-result-modal');
+    if (genResult) genResult.value = pwd;
+}
+
+function copyGenPasswordModal() {
+    const val = document.getElementById('gen-result-modal')?.value;
+    if (val) copyToClipboard(val);
+}

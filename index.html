@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>خزنة كلمات المرور المشفرة | SafeVault PRO</title>
     
     <!-- Fast Theme Init Script to avoid FOUC (Flash of Unstyled Content) -->
@@ -31,7 +31,7 @@
     <!-- Supabase JS Client for PostgreSQL Auth & Realtime Sync -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <link rel="stylesheet" href="styles.css?v=2.2.0">
+    <link rel="stylesheet" href="styles.css?v=2.3.0">
 </head>
 <body>
 
@@ -554,13 +554,35 @@
                         <i class="fa-solid fa-folder-open"></i>
                     </div>
                     <h3 id="empty-title">لا توجد حسابات في مساحة العمل هذه</h3>
-                    <p id="empty-subtitle">قم بإضافة أول حساب في هذه المساحة لحفظه مشفراً في السحابة بأمان تام.</p>
                     <button class="btn btn-primary glow-button" onclick="openAddModal()" style="margin-top: 18px;">
                         <i class="fa-solid fa-plus-circle"></i> إضافة حساب في هذه المساحة
                     </button>
                 </div>
             </section>
         </main>
+
+        <!-- Mobile Bottom Navigation Bar (Active on Mobile Screens < 768px) -->
+        <nav class="mobile-bottom-nav">
+            <button type="button" class="mobile-nav-item active" id="mob-nav-vault" onclick="handleMobileNav('vault')">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>الخزنة</span>
+            </button>
+            <button type="button" class="mobile-nav-item" id="mob-nav-workspaces" onclick="openWorkspacesDrawer()">
+                <i class="fa-solid fa-layer-group"></i>
+                <span>المساحات</span>
+            </button>
+            <button type="button" class="mobile-nav-fab" id="mob-nav-add" onclick="openAddModal()" title="إضافة حساب جديد">
+                <i class="fa-solid fa-plus"></i>
+            </button>
+            <button type="button" class="mobile-nav-item" id="mob-nav-generator" onclick="openGeneratorModal()">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>المولد</span>
+            </button>
+            <button type="button" class="mobile-nav-item" id="mob-nav-profile" onclick="openProfileModal()">
+                <i class="fa-solid fa-user"></i>
+                <span>حسابي</span>
+            </button>
+        </nav>
     </div>
 
     <!-- ==================================================== -->
@@ -854,6 +876,76 @@
     </div>
 
     <!-- ==================================================== -->
+    <!-- Modal: Mobile Workspaces Bottom Sheet / Drawer -->
+    <!-- ==================================================== -->
+    <div id="workspaces-drawer-modal" class="modal-overlay hidden">
+        <div class="modal-card ws-drawer-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-layer-group" style="color: var(--primary);"></i> مساحات العمل</h3>
+                <button class="close-btn" onclick="closeWorkspacesDrawer()">&times;</button>
+            </div>
+            <div class="ws-drawer-actions">
+                <button type="button" class="btn btn-primary btn-block" onclick="closeWorkspacesDrawer(); openCreateWorkspaceModal();">
+                    <i class="fa-solid fa-plus"></i> إنشاء مساحة عمل جديدة
+                </button>
+            </div>
+            <div class="workspaces-list ws-drawer-list" id="ws-drawer-list">
+                <!-- Injected dynamically via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Modal: Mobile Password Generator Sheet -->
+    <!-- ==================================================== -->
+    <div id="generator-modal" class="modal-overlay hidden">
+        <div class="modal-card generator-modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-wand-magic-sparkles" style="color: var(--accent-amber);"></i> مولد كلمات المرور</h3>
+                <button class="close-btn" onclick="closeGeneratorModal()">&times;</button>
+            </div>
+
+            <div class="gen-output-box">
+                <input type="text" id="gen-result-modal" readonly placeholder="اضغط توليد...">
+                <button class="btn-icon copy-btn-action" title="نسخ كلمة السر" onclick="copyGenPasswordModal()">
+                    <i class="fa-solid fa-copy"></i>
+                </button>
+            </div>
+
+            <div class="gen-controls">
+                <div class="gen-length-row">
+                    <span>طول كلمة السر:</span>
+                    <span class="length-pill" id="length-val-modal">16</span>
+                </div>
+                <input type="range" id="gen-length-modal" min="8" max="40" value="16" oninput="document.getElementById('length-val-modal').innerText = this.value; generateQuickPasswordModal();">
+            </div>
+
+            <div class="gen-options-row">
+                <label class="gen-chip">
+                    <input type="checkbox" id="gen-opt-upper-modal" checked onchange="generateQuickPasswordModal()">
+                    <span>A-Z</span>
+                </label>
+                <label class="gen-chip">
+                    <input type="checkbox" id="gen-opt-lower-modal" checked onchange="generateQuickPasswordModal()">
+                    <span>a-z</span>
+                </label>
+                <label class="gen-chip">
+                    <input type="checkbox" id="gen-opt-nums-modal" checked onchange="generateQuickPasswordModal()">
+                    <span>0-9</span>
+                </label>
+                <label class="gen-chip">
+                    <input type="checkbox" id="gen-opt-syms-modal" checked onchange="generateQuickPasswordModal()">
+                    <span>!@#$</span>
+                </label>
+            </div>
+
+            <button class="btn btn-primary btn-block btn-lg" onclick="generateQuickPasswordModal()">
+                <i class="fa-solid fa-arrows-rotate"></i> توليد كلمة سر جديدة
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
     <!-- Custom Modern Confirmation / Alert Popup Dialog -->
     <!-- ==================================================== -->
     <div id="custom-dialog-modal" class="modal-overlay hidden">
@@ -876,6 +968,6 @@
         <span id="toast-message">تمت العملية بنجاح!</span>
     </div>
 
-    <script src="app.js?v=2.2.0"></script>
+    <script src="app.js?v=2.3.0"></script>
 </body>
 </html>
