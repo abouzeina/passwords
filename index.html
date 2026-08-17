@@ -2,10 +2,35 @@
 <html lang="ar" dir="rtl" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>خزنة كلمات المرور المشفرة | SafeVault PRO</title>
     
-    <!-- Fast Theme Init Script to avoid FOUC (Flash of Unstyled Content) -->
+    <!-- Critical Inline Splash Styles (Zero-Flicker Instant Render) -->
+    <style>
+        #app-splash {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            background: #080b11;
+            z-index: 99999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Plus Jakarta Sans', 'Tajawal', sans-serif;
+            color: #ffffff;
+            transition: opacity 0.3s ease, visibility 0.3s;
+        }
+        #app-splash.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
+        .splash-content { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+        .splash-icon { width: 68px; height: 68px; border-radius: 20px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; box-shadow: 0 0 35px rgba(99, 102, 241, 0.45); }
+        .splash-content h2 { font-size: 1.7rem; font-weight: 800; margin: 0; color: #f8fafc; letter-spacing: -0.5px; }
+        .splash-spinner { width: 30px; height: 30px; border: 3px solid rgba(99, 102, 241, 0.25); border-top-color: #6366f1; border-radius: 50%; animation: splashSpin 0.75s linear infinite; }
+        @keyframes splashSpin { to { transform: rotate(360deg); } }
+    </style>
+
+    <!-- Fast Theme Init Script to avoid FOUC -->
     <script>
         (function() {
             try {
@@ -38,7 +63,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SafeVault">
     
-    <link rel="stylesheet" href="styles.css?v=3.9.0">
+    <link rel="stylesheet" href="styles.css?v=4.0.0">
 </head>
 <body>
 
@@ -56,7 +81,7 @@
     <!-- ==================================================== -->
     <!-- Authentication & Landing Screen (Login / Register / Reset) -->
     <!-- ==================================================== -->
-    <div id="auth-overlay" class="modal-overlay auth-backdrop">
+    <div id="auth-overlay" class="modal-overlay auth-backdrop hidden">
         <!-- Floating Theme Switcher on Auth Screen -->
         <div class="auth-theme-bar">
             <button type="button" class="theme-toggle-btn" onclick="toggleTheme()" title="تبديل الثيم الداكن / الفاتح" aria-label="تبديل الثيم">
@@ -1182,6 +1207,6 @@
         <span id="toast-message">تمت العملية بنجاح!</span>
     </div>
 
-    <script src="app.js?v=3.9.0"></script>
+    <script src="app.js?v=4.0.0"></script>
 </body>
 </html>

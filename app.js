@@ -361,7 +361,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Dismiss splash screen smoothly
+    // If no active session, reveal login screen and dismiss splash
+    const authOverlay = document.getElementById('auth-overlay');
+    if (authOverlay) authOverlay.classList.remove('hidden');
     hideSplash();
 });
 
@@ -370,7 +372,7 @@ function hideSplash() {
     if (splash) {
         splash.classList.add('fade-out');
         setTimeout(() => {
-            splash.remove();
+            splash.style.display = 'none';
         }, 350);
     }
 }
