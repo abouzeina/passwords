@@ -2357,6 +2357,8 @@ async function toggleFavoriteAccount(id, btnElement = null) {
     acc.isFavorite = !acc.isFavorite;
     acc.updated_at = new Date().toISOString();
 
+    triggerHaptic(acc.isFavorite ? 'success' : 'light');
+
     // Instant visual update
     renderAccounts();
     if (activeDetailsAccount && activeDetailsAccount.id === id) {
@@ -2861,13 +2863,38 @@ function importEncryptedData(event) {
 }
 
 // ==========================================
-// Helpers & Interactions
+// Helpers, Interactions & Native Haptics
 // ==========================================
+function triggerHaptic(type = 'light') {
+    if (!navigator.vibrate) return;
+    try {
+        switch (type) {
+            case 'light':
+                navigator.vibrate(10);
+                break;
+            case 'medium':
+                navigator.vibrate(24);
+                break;
+            case 'success':
+                navigator.vibrate([12, 35, 18]);
+                break;
+            case 'warning':
+            case 'error':
+                navigator.vibrate([25, 45, 25]);
+                break;
+            case 'pull':
+                navigator.vibrate(15);
+                break;
+        }
+    } catch (e) {}
+}
+
 function toggleCardPassword(id) {
     const span = document.getElementById(`pwd-val-${id}`);
     const icon = document.getElementById(`eye-icon-${id}`);
     if (!span) return;
 
+    triggerHaptic('light');
     const acc = accountsData.find(a => a.id === id);
     const actualPassword = acc ? (acc.password || '') : '';
 
@@ -2897,6 +2924,7 @@ function copyAccountPassword(id, btnElement = null) {
 function copyToClipboard(text, btnElement = null) {
     if (!text) return;
     navigator.clipboard.writeText(text).then(() => {
+        triggerHaptic('success');
         showToast('تم النسخ إلى الحافظة بنجاح! 📋');
 
         if (btnElement) {
@@ -2921,6 +2949,7 @@ function togglePasswordVisibility(inputId, btn) {
     const icon = btn ? btn.querySelector('i') : null;
     if (!input) return;
 
+    triggerHaptic('light');
     if (input.type === 'password') {
         input.type = 'text';
         if (icon) icon.className = 'fa-solid fa-eye-slash';
@@ -2943,13 +2972,17 @@ function showToast(msg) {
 }
 
 // ==========================================
-// Mobile Bottom Navigation & Drawers Handlers
+// Mobile Bottom Navigation & Speed Dial FAB
 // ==========================================
 function handleMobileNav(tab) {
+    triggerHaptic('light');
     const navItems = document.querySelectorAll('.mobile-nav-item');
     navItems.forEach(item => item.classList.remove('active'));
     const target = document.getElementById(`mob-nav-${tab}`);
     if (target) target.classList.add('active');
+
+    // Close speed dial if open
+    toggleFabSpeedDial(false);
 
     if (tab === 'vault') {
         showVaultPage();
@@ -2958,7 +2991,27 @@ function handleMobileNav(tab) {
     }
 }
 
+function toggleFabSpeedDial(forceState = null) {
+    const dial = document.getElementById('fab-speed-dial');
+    const fabBtn = document.getElementById('mob-nav-add');
+    if (!dial || !fabBtn) return;
+
+    const isHidden = dial.classList.contains('hidden');
+    const shouldShow = forceState !== null ? forceState : isHidden;
+
+    if (shouldShow) {
+        dial.classList.remove('hidden');
+        fabBtn.classList.add('active-fab');
+        triggerHaptic('medium');
+    } else {
+        dial.classList.add('hidden');
+        fabBtn.classList.remove('active-fab');
+        triggerHaptic('light');
+    }
+}
+
 function openWorkspacesDrawer() {
+    triggerHaptic('medium');
     renderDrawerWorkspacesList();
     document.getElementById('workspaces-drawer-modal').classList.remove('hidden');
 }
@@ -2984,6 +3037,7 @@ function renderDrawerWorkspacesList() {
         <span class="ws-count-badge">${accountsData.length}</span>
     `;
     allBtn.onclick = () => {
+        triggerHaptic('light');
         switchWorkspace('ALL');
         closeWorkspacesDrawer();
     };
@@ -3003,6 +3057,7 @@ function renderDrawerWorkspacesList() {
             <span class="ws-count-badge">${count}</span>
         `;
         btn.onclick = () => {
+            triggerHaptic('light');
             switchWorkspace(ws.id);
             closeWorkspacesDrawer();
         };
@@ -3011,6 +3066,7 @@ function renderDrawerWorkspacesList() {
 }
 
 function openGeneratorModal() {
+    triggerHaptic('medium');
     generateQuickPasswordModal();
     document.getElementById('generator-modal').classList.remove('hidden');
 }
@@ -3045,6 +3101,280 @@ function generateQuickPasswordModal() {
 
     const genResult = document.getElementById('gen-result-modal');
     if (genResult) genResult.value = pwd;
+}
+
+// ==========================================
+// Native Mobile Pull-to-Refresh
+// ==========================================
+function initPullToRefresh() {
+    const container = document.getElementById('pull-refresh-container');
+    const icon = document.getElementById('pull-refresh-icon');
+    const text = document.getElementById('pull-refresh-text');
+    const vaultView = document.getElementById('vault-view');
+    if (!container || !vaultView) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+    let isSyncing = false;
+    const threshold = 65;
+
+    window.addEventListener('touchstart', (e) => {
+        if (window.scrollY <= 4 && !isSyncing && !vaultView.classList.contains('hidden')) {
+            startY = e.touches[0].clientY;
+            isDragging = true;
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!isDragging || isSyncing) return;
+        currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+
+        if (diff > 8 && window.scrollY <= 4) {
+            const pullHeight = Math.min(diff * 0.45, 90);
+            container.style.height = `${pullHeight}px`;
+
+            const rotation = (pullHeight / threshold) * 360;
+            if (icon) icon.style.transform = `rotate(${rotation}deg)`;
+
+            if (pullHeight >= threshold * 0.45) {
+                if (text) text.innerText = 'اترك للتحديث السحابي...';
+                if (!container.dataset.vibrated) {
+                    triggerHaptic('pull');
+                    container.dataset.vibrated = 'true';
+                }
+            } else {
+                if (text) text.innerText = 'اسحب للتحديث...';
+                delete container.dataset.vibrated;
+            }
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchend', async () => {
+        if (!isDragging || isSyncing) return;
+        isDragging = false;
+        const diff = currentY - startY;
+        const pullHeight = Math.min(diff * 0.45, 90);
+
+        if (pullHeight >= threshold * 0.45 && window.scrollY <= 4) {
+            isSyncing = true;
+            container.classList.add('refreshing');
+            if (text) text.innerText = 'جاري المزامنة...';
+            if (icon) icon.classList.add('fa-spin');
+            triggerHaptic('medium');
+
+            try {
+                await syncWithCloudNow();
+                triggerHaptic('success');
+            } catch (err) {
+            } finally {
+                setTimeout(() => {
+                    container.style.height = '0px';
+                    container.classList.remove('refreshing');
+                    if (icon) {
+                        icon.classList.remove('fa-spin');
+                        icon.style.transform = '';
+                    }
+                    if (text) text.innerText = 'اسحب للتحديث';
+                    isSyncing = false;
+                }, 500);
+            }
+        } else {
+            container.style.height = '0px';
+            if (icon) icon.style.transform = '';
+        }
+        delete container.dataset.vibrated;
+    }, { passive: true });
+}
+
+// ==========================================
+// Swipe-Down-to-Dismiss on Mobile Bottom Sheets
+// ==========================================
+function initDrawerSwipeDismiss() {
+    ['workspaces-drawer-modal', 'generator-modal'].forEach(modalId => {
+        const overlay = document.getElementById(modalId);
+        if (!overlay) return;
+        const card = overlay.querySelector('.modal-card, .ws-drawer-card, .generator-modal-card');
+        if (!card) return;
+
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+
+        card.addEventListener('touchstart', (e) => {
+            if (card.scrollTop <= 2) {
+                startY = e.touches[0].clientY;
+                isDragging = true;
+            }
+        }, { passive: true });
+
+        card.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            currentY = e.touches[0].clientY;
+            const diff = currentY - startY;
+            if (diff > 0) {
+                card.style.transform = `translateY(${diff * 0.75}px)`;
+            }
+        }, { passive: true });
+
+        card.addEventListener('touchend', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            const diff = currentY - startY;
+            if (diff > 85) {
+                triggerHaptic('light');
+                overlay.classList.add('hidden');
+                card.style.transform = '';
+            } else {
+                card.style.transform = '';
+            }
+        }, { passive: true });
+    });
+}
+
+// ==========================================
+// Biometric WebAuthn Platform Authentication
+// ==========================================
+const BIOMETRIC_CRED_KEY = 'safevault_biometric_registered';
+
+async function checkBiometricAvailability() {
+    try {
+        const isAvailable = !!(window.PublicKeyCredential && 
+            await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
+        
+        const bioLoginBox = document.getElementById('biometric-login-box');
+        const bioSettingBtn = document.getElementById('btn-profile-biometric');
+        const bioTitle = document.getElementById('biometric-btn-title');
+        const bioDesc = document.getElementById('biometric-btn-desc');
+
+        const isRegistered = localStorage.getItem(BIOMETRIC_CRED_KEY) === 'true';
+
+        if (bioLoginBox) {
+            if (isAvailable && isRegistered) {
+                bioLoginBox.classList.remove('hidden');
+            } else {
+                bioLoginBox.classList.add('hidden');
+            }
+        }
+
+        if (bioSettingBtn && bioTitle && bioDesc) {
+            if (!isAvailable) {
+                bioSettingBtn.style.display = 'none';
+            } else {
+                bioSettingBtn.style.display = 'flex';
+                if (isRegistered) {
+                    bioTitle.innerText = 'البصمة مفعلة (Touch ID / Face ID) ✓';
+                    bioDesc.innerText = 'انقر لإلغاء تفعيل الدخول بالبصمة';
+                } else {
+                    bioTitle.innerText = 'تفعيل البصمة / Face ID';
+                    bioDesc.innerText = 'تفعيل فتح الخزنة السريع ببصمة الإصبع أو الوجه';
+                }
+            }
+        }
+    } catch (e) {}
+}
+
+async function toggleBiometricSetup() {
+    triggerHaptic('medium');
+    const isRegistered = localStorage.getItem(BIOMETRIC_CRED_KEY) === 'true';
+
+    if (isRegistered) {
+        localStorage.removeItem(BIOMETRIC_CRED_KEY);
+        localStorage.removeItem('safevault_bio_email');
+        localStorage.removeItem('safevault_bio_pwd');
+        showToast('تم إلغاء تفعيل الدخول بالبصمة');
+        checkBiometricAvailability();
+        return;
+    }
+
+    if (!window.PublicKeyCredential) {
+        showToast('جهازك لا يدعم المصادقة بالبصمة');
+        return;
+    }
+
+    try {
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+
+        const createOptions = {
+            publicKey: {
+                challenge: challenge,
+                rp: { name: 'SafeVault PRO' },
+                user: {
+                    id: new Uint8Array(16),
+                    name: currentUserEmail || 'user@safevault.app',
+                    displayName: (currentUserProfile && currentUserProfile.fullName) || 'مستخدم SafeVault'
+                },
+                pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+                authenticatorSelection: {
+                    authenticatorAttachment: 'platform',
+                    userVerification: 'required'
+                },
+                timeout: 60000
+            }
+        };
+
+        const credential = await navigator.credentials.create(createOptions);
+        if (credential) {
+            localStorage.setItem(BIOMETRIC_CRED_KEY, 'true');
+            if (currentUserEmail) localStorage.setItem('safevault_bio_email', currentUserEmail);
+            if (legacyMasterKey) localStorage.setItem('safevault_bio_pwd', legacyMasterKey);
+            triggerHaptic('success');
+            showToast('تم تفعيل الدخول بالبصمة / Face ID بنجاح! 🔒✨');
+            checkBiometricAvailability();
+        }
+    } catch (err) {
+        console.warn('Biometric setup canceled or failed:', err);
+        showToast('تم إلغاء إعداد البصمة');
+    }
+}
+
+async function handleBiometricLogin() {
+    triggerHaptic('medium');
+    const savedEmail = localStorage.getItem('safevault_bio_email');
+    const savedKey = localStorage.getItem('safevault_bio_pwd');
+
+    if (!savedEmail || !savedKey) {
+        showToast('يرجى تسجيل الدخول أولاً وتفعيل البصمة من الملف الشخصي');
+        return;
+    }
+
+    try {
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+
+        const getOptions = {
+            publicKey: {
+                challenge: challenge,
+                timeout: 60000,
+                userVerification: 'required'
+            }
+        };
+
+        const assertion = await navigator.credentials.get(getOptions);
+        if (assertion) {
+            triggerHaptic('success');
+            showToast('تم التحقق من البصمة بنجاح! 🔓✨');
+            
+            // Auto login with saved credentials
+            const emailInput = document.getElementById('login-email');
+            const pwdInput = document.getElementById('login-password');
+            if (emailInput) emailInput.value = savedEmail;
+            if (pwdInput) pwdInput.value = savedKey;
+
+            // Submit login
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+                loginForm.dispatchEvent(submitEvent);
+            }
+        }
+    } catch (err) {
+        console.warn('Biometric login canceled or failed:', err);
+        triggerHaptic('warning');
+        showToast('فشل التحقق من البصمة أو تم إلغاؤها');
+    }
 }
 
 // ==========================================
@@ -3147,6 +3477,8 @@ function initKeyboardShortcuts() {
                 }
             });
 
+            toggleFabSpeedDial(false);
+
             if (!closedAny && isEditing) {
                 activeElement.blur();
             }
@@ -3191,12 +3523,15 @@ function initModalBackdropDismiss() {
     });
 }
 
-// Initialize PWA, Keyboard Shortcuts, and Backdrop Dismissal on startup
-initPWA();
-initKeyboardShortcuts();
-initModalBackdropDismiss();
-
 function copyGenPasswordModal() {
     const val = document.getElementById('gen-result-modal')?.value;
     if (val) copyToClipboard(val);
 }
+
+// Startup Initializations
+initPWA();
+initKeyboardShortcuts();
+initModalBackdropDismiss();
+initPullToRefresh();
+initDrawerSwipeDismiss();
+checkBiometricAvailability();

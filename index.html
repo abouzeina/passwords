@@ -147,6 +147,14 @@
                     <i class="fa-solid fa-shield-halved"></i> تسجيل الدخول
                 </button>
 
+                <!-- Biometric Quick Login (Touch ID / Face ID) -->
+                <div id="biometric-login-box" class="biometric-login-box hidden">
+                    <div class="auth-divider"><span>أو الدخول السريع</span></div>
+                    <button type="button" class="btn btn-secondary btn-block btn-lg btn-biometric" onclick="handleBiometricLogin()" id="biometric-login-btn">
+                        <i class="fa-solid fa-fingerprint"></i> الدخول بالبصمة / Face ID
+                    </button>
+                </div>
+
                 <div class="auth-footer-link">
                     <span>ليس لديك حساب؟</span>
                     <button type="button" class="link-btn-text" onclick="switchAuthMode('register')">إنشاء حساب جديد</button>
@@ -504,6 +512,14 @@
 
             <!-- Accounts Section -->
             <section class="accounts-section" id="vault-view">
+                <!-- Native Mobile Pull to Refresh Indicator -->
+                <div id="pull-refresh-container" class="pull-refresh-container">
+                    <div class="pull-refresh-circle">
+                        <i class="fa-solid fa-arrows-rotate" id="pull-refresh-icon"></i>
+                    </div>
+                    <span class="pull-refresh-text" id="pull-refresh-text">اسحب للتحديث</span>
+                </div>
+
                 <!-- Workspace Active Banner / Filter Bar -->
                 <div class="workspace-banner" id="active-workspace-banner">
                     <div class="banner-info">
@@ -819,6 +835,14 @@
                         </div>
 
                         <div class="profile-quick-actions-grid">
+                            <button type="button" class="profile-action-btn" onclick="toggleBiometricSetup()" id="btn-profile-biometric">
+                                <div class="pab-icon" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald);"><i class="fa-solid fa-fingerprint"></i></div>
+                                <div class="pab-text">
+                                    <strong id="biometric-btn-title">تسجيل الدخول بالبصمة / Face ID</strong>
+                                    <span id="biometric-btn-desc">تفعيل فتح الخزنة السريع ببصمة الإصبع أو الوجه</span>
+                                </div>
+                            </button>
+
                             <button type="button" class="profile-action-btn" onclick="exportEncryptedData()">
                                 <div class="pab-icon"><i class="fa-solid fa-download"></i></div>
                                 <div class="pab-text">
@@ -848,6 +872,25 @@
             </section>
         </main>
 
+        <!-- Speed Dial FAB Micro-Menu for Mobile -->
+        <div id="fab-speed-dial" class="fab-speed-dial hidden" onclick="toggleFabSpeedDial(false)">
+            <div class="fab-backdrop"></div>
+            <div class="fab-menu" onclick="event.stopPropagation()">
+                <button type="button" class="fab-action-btn" onclick="openAddModal(); toggleFabSpeedDial(false);">
+                    <div class="fab-action-label">إضافة حساب جديد</div>
+                    <div class="fab-action-icon bg-primary"><i class="fa-solid fa-key"></i></div>
+                </button>
+                <button type="button" class="fab-action-btn" onclick="openGeneratorModal(); toggleFabSpeedDial(false);">
+                    <div class="fab-action-label">مولد كلمات السر</div>
+                    <div class="fab-action-icon bg-amber"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                </button>
+                <button type="button" class="fab-action-btn" onclick="openCreateWorkspaceModal(); toggleFabSpeedDial(false);">
+                    <div class="fab-action-label">مساحة عمل جديدة</div>
+                    <div class="fab-action-icon bg-emerald"><i class="fa-solid fa-folder-plus"></i></div>
+                </button>
+            </div>
+        </div>
+
         <!-- Mobile Bottom Navigation Bar (Active on Mobile Screens < 768px) -->
         <nav class="mobile-bottom-nav">
             <button type="button" class="mobile-nav-item active" id="mob-nav-vault" onclick="handleMobileNav('vault')">
@@ -858,8 +901,8 @@
                 <i class="fa-solid fa-layer-group"></i>
                 <span>المساحات</span>
             </button>
-            <button type="button" class="mobile-nav-fab" id="mob-nav-add" onclick="openAddModal()" title="إضافة حساب جديد">
-                <i class="fa-solid fa-plus"></i>
+            <button type="button" class="mobile-nav-fab" id="mob-nav-add" onclick="toggleFabSpeedDial()" title="خيارات سريعة">
+                <i class="fa-solid fa-plus" id="fab-main-icon"></i>
             </button>
             <button type="button" class="mobile-nav-item" id="mob-nav-generator" onclick="openGeneratorModal()">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>

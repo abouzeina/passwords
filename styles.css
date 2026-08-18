@@ -3411,6 +3411,174 @@ input[type="range"]::-webkit-slider-thumb:hover {
     color: var(--primary-light);
 }
 
+/* ==========================================
+   16.5 NATIVE MOBILE SUITE (Pull to Refresh, FAB Speed Dial, Biometrics)
+   ========================================== */
+
+/* Pull-to-Refresh Indicator */
+.pull-refresh-container {
+    height: 0px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: height 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    color: var(--primary-light);
+}
+.pull-refresh-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-medium);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: var(--primary-light);
+}
+.pull-refresh-text {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.pull-refresh-container.refreshing .pull-refresh-circle {
+    background: var(--primary);
+    color: #ffffff;
+    box-shadow: var(--glow-primary);
+}
+
+/* Speed Dial FAB Micro-Menu */
+.fab-speed-dial {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    pointer-events: auto;
+}
+.fab-speed-dial.hidden {
+    display: none !important;
+}
+.fab-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: modalFadeIn 0.2s ease;
+}
+.fab-menu {
+    position: relative;
+    z-index: 2;
+    margin-bottom: calc(88px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    animation: modalScaleUp 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fab-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fab-action-btn:active {
+    transform: scale(0.92);
+}
+.fab-action-label {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    font-size: 0.88rem;
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+    white-space: nowrap;
+}
+.fab-action-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+}
+.fab-action-icon.bg-primary { background: var(--primary-gradient); }
+.fab-action-icon.bg-amber { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+.fab-action-icon.bg-emerald { background: var(--accent-emerald-gradient); }
+
+.mobile-nav-fab.active-fab {
+    transform: translateY(-12px) rotate(45deg) !important;
+    background: var(--danger) !important;
+    box-shadow: 0 0 25px rgba(244, 63, 94, 0.45) !important;
+}
+
+/* Biometric Login Box */
+.biometric-login-box {
+    margin-top: 18px;
+    width: 100%;
+}
+.auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 16px 0 14px 0;
+}
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.auth-divider span {
+    padding: 0 10px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.btn-biometric {
+    background: rgba(16, 185, 129, 0.12) !important;
+    border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    color: var(--accent-emerald-light) !important;
+    gap: 8px;
+    font-weight: 700 !important;
+}
+.btn-biometric:hover {
+    background: rgba(16, 185, 129, 0.22) !important;
+    border-color: var(--accent-emerald) !important;
+}
+
+/* Card Swipe Physics */
+.account-card {
+    touch-action: pan-y;
+    user-select: none;
+}
+.account-card .info-val {
+    user-select: text;
+}
+.drawer-drag-handle {
+    width: 40px;
+    height: 5px;
+    background: var(--border-medium);
+    border-radius: 10px;
+    margin: 0 auto 12px auto;
+}
+
 .mobile-nav-fab {
     width: 48px;
     height: 48px;
