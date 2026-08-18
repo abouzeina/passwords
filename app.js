@@ -3413,23 +3413,49 @@ function initPWA() {
         deferredPWAInstallPrompt = null;
         const installBtn = document.getElementById('pwa-install-btn');
         if (installBtn) installBtn.classList.add('hidden');
+        dismissPwaBanner();
         showToast('تم تثبيت تطبيق SafeVault بنجاح على جهازك! 📲🎉');
     });
+
+    // Smart mobile banner prompt
+    setTimeout(checkAndShowPwaBanner, 1800);
+}
+
+function checkAndShowPwaBanner() {
+    const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+    const isMobile = window.innerWidth <= 768;
+    const isDismissed = sessionStorage.getItem('pwa_banner_dismissed') === 'true';
+
+    if (!isStandalone && isMobile && !isDismissed) {
+        const banner = document.getElementById('pwa-install-banner');
+        if (banner) banner.classList.remove('hidden');
+    }
+}
+
+function dismissPwaBanner() {
+    triggerHaptic('light');
+    const banner = document.getElementById('pwa-install-banner');
+    if (banner) banner.classList.add('hidden');
+    sessionStorage.setItem('pwa_banner_dismissed', 'true');
 }
 
 async function installPWAApp() {
-    if (!deferredPWAInstallPrompt) {
-        showToast('التطبيق مثبت بالفعل أو أن متصفحك لا يدعم التثبيت المباشر.');
+    triggerHaptic('medium');
+    if (deferredPWAInstallPrompt) {
+        deferredPWAInstallPrompt.prompt();
+        const { outcome } = await deferredPWAInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) installBtn.classList.add('hidden');
+            dismissPwaBanner();
+            showToast('جاري تثبيت تطبيق SafeVault PRO... 📲✨');
+        }
+        deferredPWAInstallPrompt = null;
         return;
     }
 
-    deferredPWAInstallPrompt.prompt();
-    const { outcome } = await deferredPWAInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-        const installBtn = document.getElementById('pwa-install-btn');
-        if (installBtn) installBtn.classList.add('hidden');
-    }
-    deferredPWAInstallPrompt = null;
+    // Guide toast for mobile browsers
+    showToast('لتثبيت التطبيق: اضغط على الثلاث نقاط (⋮) في المتصفح واختر "تثبيت التطبيق" أو "Install App" 📲');
 }
 
 // ==========================================

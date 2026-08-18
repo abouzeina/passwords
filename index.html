@@ -837,6 +837,14 @@
                         </div>
 
                         <div class="profile-quick-actions-grid">
+                            <button type="button" class="profile-action-btn" onclick="installPWAApp()" id="btn-profile-install">
+                                <div class="pab-icon" style="background: rgba(99, 102, 241, 0.14); color: var(--primary-light);"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                                <div class="pab-text">
+                                    <strong>تثبيت التطبيق على الهاتف</strong>
+                                    <span>تشغيل كـ تطبيق أصلي كامل بدون متصفح</span>
+                                </div>
+                            </button>
+
                             <button type="button" class="profile-action-btn" onclick="toggleBiometricSetup()" id="btn-profile-biometric">
                                 <div class="pab-icon" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald);"><i class="fa-solid fa-fingerprint"></i></div>
                                 <div class="pab-text">
@@ -915,6 +923,32 @@
                 <span>حسابي</span>
             </button>
         </nav>
+    </div>
+
+    <!-- Native PWA Mobile Install Smart Banner / Bottom Sheet -->
+    <div id="pwa-install-banner" class="pwa-install-banner hidden">
+        <div class="pwa-banner-card">
+            <button type="button" class="pwa-banner-close" onclick="dismissPwaBanner()" aria-label="إغلاق">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="pwa-banner-body">
+                <div class="pwa-banner-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div class="pwa-banner-info">
+                    <h4>تثبيت SafeVault <sup>PRO</sup></h4>
+                    <p>استمتع بتجربة تطبيق أصلية كاملة وسريعة بدون شريط المتصفح مع دعم البصمة والعمل دون إنترنت.</p>
+                </div>
+            </div>
+            <div class="pwa-banner-actions">
+                <button type="button" class="btn btn-primary btn-block glow-button" onclick="installPWAApp(); dismissPwaBanner();">
+                    <i class="fa-solid fa-download"></i> تثبيت التطبيق الآن
+                </button>
+                <button type="button" class="btn btn-secondary btn-block btn-sm" onclick="dismissPwaBanner()">
+                    المتابعة من المتصفح
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- ==================================================== -->
