@@ -30,6 +30,37 @@ const STORAGE_SESSION_KEY = 'safevault_active_session_user';
 const STORAGE_LOCAL_VAULT_PREFIX = 'safevault_user_vault_';
 const STORAGE_WORKSPACES_PREFIX = 'safevault_user_ws_';
 const STORAGE_PROFILE_PREFIX = 'safevault_user_prof_';
+const STORAGE_DELETED_PREFIX = 'safevault_user_deleted_';
+
+function getDeletedIds() {
+    if (!currentUserEmail) return new Set();
+    try {
+        const stored = localStorage.getItem(STORAGE_DELETED_PREFIX + currentUserEmail);
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function addDeletedId(id) {
+    if (!currentUserEmail || !id) return;
+    const set = getDeletedIds();
+    set.add(id);
+    const arr = Array.from(set).slice(-500);
+    try {
+        localStorage.setItem(STORAGE_DELETED_PREFIX + currentUserEmail, JSON.stringify(arr));
+    } catch (e) {}
+}
+
+function removeDeletedId(id) {
+    if (!currentUserEmail || !id) return;
+    const set = getDeletedIds();
+    if (set.delete(id)) {
+        try {
+            localStorage.setItem(STORAGE_DELETED_PREFIX + currentUserEmail, JSON.stringify(Array.from(set)));
+        } catch (e) {}
+    }
+}
 
 function saveActiveSession(email, profile) {
     const sessionPayload = {
@@ -1445,6 +1476,7 @@ async function loadUserVault() {
         if (!user) return false;
 
         const prevDataJson = JSON.stringify(accountsData);
+        const deletedIds = getDeletedIds();
 
         // Restore custom workspaces from user metadata if available
         if (user.user_metadata && Array.isArray(user.user_metadata.workspaces) && user.user_metadata.workspaces.length > 0) {
@@ -1465,7 +1497,16 @@ async function loadUserVault() {
         }
 
         if (data && data.length > 0) {
-            const cloudAccounts = await Promise.all(data.map(async row => {
+            // Asynchronously purge any deleted IDs that are still in database
+            const rowsToPurge = data.filter(row => deletedIds.has(row.id));
+            if (rowsToPurge.length > 0) {
+                const idsToPurge = rowsToPurge.map(r => r.id);
+                supabaseClient.from('vault_items').delete().in('id', idsToPurge).catch(() => {});
+            }
+
+            const activeRows = data.filter(row => !deletedIds.has(row.id));
+
+            const cloudAccounts = await Promise.all(activeRows.map(async row => {
                 const decCat = await decryptText(row.category);
                 const decNotes = await decryptText(row.notes);
                 const decName = await decryptText(row.name);
@@ -1492,12 +1533,12 @@ async function loadUserVault() {
                 };
             }));
 
-            const filteredCloud = cloudAccounts.filter(acc => acc.name || acc.username || acc.password);
+            const filteredCloud = cloudAccounts.filter(acc => (acc.name || acc.username || acc.password) && !deletedIds.has(acc.id));
 
-            // Smart Merge: Never overwrite newer or more detailed local data with stale cloud data
+            // Smart Merge: Never overwrite newer local updates, and NEVER resurrect deleted items
             const localMap = new Map();
             accountsData.forEach(acc => {
-                if (acc && acc.id) localMap.set(acc.id, acc);
+                if (acc && acc.id && !deletedIds.has(acc.id)) localMap.set(acc.id, acc);
             });
 
             const mergedAccounts = [];
@@ -1526,9 +1567,9 @@ async function loadUserVault() {
                 }
             }
 
-            // Keep local-only accounts that haven't reached cloud yet
+            // ONLY keep offline items with explicit isPendingSync flag that were NOT deleted
             for (const acc of accountsData) {
-                if (acc && acc.id && !seenIds.has(acc.id)) {
+                if (acc && acc.id && acc.isPendingSync && !seenIds.has(acc.id) && !deletedIds.has(acc.id)) {
                     mergedAccounts.push(acc);
                     needReSync = true;
                 }
@@ -1544,9 +1585,13 @@ async function loadUserVault() {
             const newDataJson = JSON.stringify(accountsData);
             return prevDataJson !== newDataJson;
         } else if (accountsData.length > 0) {
-            // Local accounts exist but cloud has none yet -> upload them
-            await saveAndSyncVault();
-            return false;
+            // Filter out any deleted IDs from local
+            accountsData = accountsData.filter(a => !deletedIds.has(a.id));
+            await saveToLocalStorage();
+            if (accountsData.length > 0) {
+                await saveAndSyncVault();
+            }
+            return true;
         }
         return false;
     } catch (e) {
@@ -1727,9 +1772,13 @@ function setupRealtimeSync() {
                 }
             })
             // 1. Instant 0ms WebSocket Broadcast from any connected device (Completely Silent in Background)
-            .on('broadcast', { event: 'vault_sync' }, async () => {
+            .on('broadcast', { event: 'vault_sync' }, async (payload) => {
+                if (payload && payload.payload && payload.payload.deletedId) {
+                    addDeletedId(payload.payload.deletedId);
+                    accountsData = accountsData.filter(a => a.id !== payload.payload.deletedId);
+                }
                 const changed = await loadUserVault();
-                if (changed) {
+                if (changed || (payload && payload.payload && payload.payload.deletedId)) {
                     renderWorkspacesList();
                     renderAccounts();
                 }
@@ -2612,6 +2661,9 @@ async function handleAccountSubmit(e) {
         const url = urls.join('\n');
         const now = new Date().toISOString();
 
+        const targetId = id || generateUUID();
+        removeDeletedId(targetId);
+
         if (id) {
             const idx = accountsData.findIndex(a => a.id === id);
             if (idx !== -1) {
@@ -2619,7 +2671,7 @@ async function handleAccountSubmit(e) {
             }
         } else {
             const newAccount = {
-                id: generateUUID(),
+                id: targetId,
                 workspaceId,
                 name, username, password, url, urls, isFavorite, category, notes,
                 updated_at: now
@@ -2693,11 +2745,17 @@ async function deleteAccount(id) {
     });
 
     if (confirmed) {
+        addDeletedId(id);
         accountsData = accountsData.filter(a => a.id !== id);
 
         if (supabaseClient) {
             try {
-                await supabaseClient.from('vault_items').delete().eq('id', id);
+                const { data: { user } } = await supabaseClient.auth.getUser();
+                if (user) {
+                    await supabaseClient.from('vault_items').delete().match({ id: id, user_id: user.id });
+                } else {
+                    await supabaseClient.from('vault_items').delete().eq('id', id);
+                }
             } catch (e) {
                 console.warn('Error deleting item from database:', e);
             }
