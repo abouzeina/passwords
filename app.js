@@ -2110,16 +2110,16 @@ function renderAccounts() {
         };
 
         // Render Links HTML for Card Footer
-        let linksHtml = '<span></span>';
+        let linksHtml = '';
         if (urls.length === 1) {
             const u = urls[0];
-            linksHtml = `<a href="${escapeHtml(u.startsWith('http') ? u : 'https://' + u)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> فتح الموقع</a>`;
+            linksHtml = `<a href="${escapeHtml(u.startsWith('http') ? u : 'https://' + u)}" target="_blank" rel="noopener" class="card-url-pill" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> <span>فتح الموقع</span></a>`;
         } else if (urls.length > 1) {
             linksHtml = `
-                <div style="display: flex; gap: 6px; align-items: center;">
-                    <a href="${escapeHtml(urls[0].startsWith('http') ? urls[0] : 'https://' + urls[0])}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> الرابط 1</a>
-                    <a href="${escapeHtml(urls[1].startsWith('http') ? urls[1] : 'https://' + urls[1])}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> الرابط 2</a>
-                    ${urls.length > 2 ? `<span style="font-size: 0.72rem; color: var(--text-muted);">+${urls.length - 2}</span>` : ''}
+                <div class="card-links-multiple">
+                    <a href="${escapeHtml(urls[0].startsWith('http') ? urls[0] : 'https://' + urls[0])}" target="_blank" rel="noopener" class="card-url-pill" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> <span>رابط 1</span></a>
+                    <a href="${escapeHtml(urls[1].startsWith('http') ? urls[1] : 'https://' + urls[1])}" target="_blank" rel="noopener" class="card-url-pill" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> <span>رابط 2</span></a>
+                    ${urls.length > 2 ? `<span class="card-links-more">+${urls.length - 2}</span>` : ''}
                 </div>
             `;
         }
@@ -2130,81 +2130,86 @@ function renderAccounts() {
                     <div class="account-icon ${brand.brandClass || ''}">
                         <i class="${brand.icon || 'fa-solid fa-key'}"></i>
                     </div>
-                    <div>
-                        <div class="account-title">
+                    <div class="title-info">
+                        <div class="account-title" title="${escapeHtml(acc.name)}">
                             ${escapeHtml(acc.name)}
                         </div>
                         <div class="badge-row">
-                            <span class="account-ws-badge"><i class="fa-solid ${wsObj.icon}"></i> ${escapeHtml(wsObj.name)}</span>
+                            <span class="account-ws-badge" title="مساحة العمل"><i class="fa-solid ${wsObj.icon}"></i> ${escapeHtml(wsObj.name)}</span>
                             <span class="account-category-badge">${escapeHtml(acc.category || 'أخرى')}</span>
                         </div>
                     </div>
                 </div>
                 <div class="card-top-actions">
-                    <button class="btn-icon star-btn-action ${acc.isFavorite ? 'is-fav' : ''}" title="${acc.isFavorite ? 'إزالة من المفضلة' : 'تثبيت في المفضلة'}" onclick="event.stopPropagation(); toggleFavoriteAccount('${acc.id}', this)">
+                    <button type="button" class="btn-icon star-btn-action ${acc.isFavorite ? 'is-fav' : ''}" title="${acc.isFavorite ? 'إزالة من المفضلة' : 'تثبيت في المفضلة'}" onclick="event.stopPropagation(); toggleFavoriteAccount('${acc.id}', this)" aria-label="المفضلة">
                         <i class="${acc.isFavorite ? 'fa-solid fa-star' : 'fa-regular fa-star'}"></i>
                     </button>
-                    <button class="btn-icon copy-btn-action" title="نسخ كل بيانات الحساب" onclick="event.stopPropagation(); copyAllAccountData('${acc.id}', this)">
-                        <i class="fa-solid fa-copy"></i>
-                    </button>
-                    <button class="btn-icon" title="مشاركة بيانات الحساب" onclick="event.stopPropagation(); shareAccountData('${acc.id}', this)">
-                        <i class="fa-solid fa-share-nodes"></i>
-                    </button>
-                    <button class="btn-icon" title="تعديل الحساب" onclick="event.stopPropagation(); editAccount('${acc.id}')">
+                    <button type="button" class="btn-icon edit-btn-action" title="تعديل الحساب" onclick="event.stopPropagation(); editAccount('${acc.id}')" aria-label="تعديل">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
-                    <button class="btn-icon" title="حذف الحساب" onclick="event.stopPropagation(); deleteAccount('${acc.id}')" style="color: var(--danger);">
+                    <button type="button" class="btn-icon delete-btn-action" title="حذف الحساب" onclick="event.stopPropagation(); deleteAccount('${acc.id}')" aria-label="حذف">
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Username Row -->
-            <div class="account-info-row">
-                <span class="info-label"><i class="fa-solid fa-user"></i> المستخدم:</span>
-                <div class="info-content">
-                    <span class="info-val" title="${escapeHtml(acc.username)}">${escapeHtml(acc.username)}</span>
-                    <button class="btn-icon copy-btn-action" title="نسخ اسم المستخدم" onclick="event.stopPropagation(); copyToClipboard('${escapeHtml(acc.username)}', this)">
-                        <i class="fa-solid fa-copy"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Password Row -->
-            <div class="account-info-row">
-                <span class="info-label"><i class="fa-solid fa-key"></i> كلمة السر:</span>
-                <div class="info-content">
-                    <span class="info-val font-mono" id="pwd-val-${acc.id}">••••••••••••</span>
+            <!-- Credentials Body -->
+            <div class="account-card-body">
+                <!-- Username Row -->
+                <div class="account-info-row">
+                    <div class="info-label-group">
+                        <i class="fa-solid fa-user info-icon"></i>
+                        <span class="info-label">المستخدم</span>
+                    </div>
+                    <div class="info-content">
+                        <span class="info-val" title="${escapeHtml(acc.username)}">${escapeHtml(acc.username)}</span>
+                    </div>
                     <div class="info-actions">
-                        <button class="btn-icon" title="إظهار/إخفاء" onclick="event.stopPropagation(); toggleCardPassword('${acc.id}', '${escapeHtml(acc.password)}')">
-                            <i class="fa-solid fa-eye" id="eye-icon-${acc.id}"></i>
-                        </button>
-                        <button class="btn-icon copy-btn-action" title="نسخ كلمة السر" onclick="event.stopPropagation(); copyToClipboard('${escapeHtml(acc.password)}', this)">
+                        <button type="button" class="btn-icon copy-btn-action" title="نسخ اسم المستخدم" onclick="event.stopPropagation(); copyAccountUsername('${acc.id}', this)" aria-label="نسخ اسم المستخدم">
                             <i class="fa-solid fa-copy"></i>
                         </button>
                     </div>
                 </div>
+
+                <!-- Password Row -->
+                <div class="account-info-row">
+                    <div class="info-label-group">
+                        <i class="fa-solid fa-key info-icon"></i>
+                        <span class="info-label">كلمة السر</span>
+                    </div>
+                    <div class="info-content">
+                        <span class="info-val font-mono" id="pwd-val-${acc.id}">••••••••••••</span>
+                    </div>
+                    <div class="info-actions">
+                        <button type="button" class="btn-icon" title="إظهار/إخفاء كلمة السر" onclick="event.stopPropagation(); toggleCardPassword('${acc.id}')" aria-label="إظهار أو إخفاء كلمة السر">
+                            <i class="fa-solid fa-eye" id="eye-icon-${acc.id}"></i>
+                        </button>
+                        <button type="button" class="btn-icon copy-btn-action" title="نسخ كلمة السر" onclick="event.stopPropagation(); copyAccountPassword('${acc.id}', this)" aria-label="نسخ كلمة السر">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                ${acc.notes ? `
+                <div class="account-notes-preview">
+                    <i class="fa-solid fa-note-sticky"></i>
+                    <p>${escapeHtml(acc.notes)}</p>
+                </div>
+                ` : ''}
             </div>
 
-            ${acc.notes ? `
-            <div class="account-notes-preview">
-                <i class="fa-solid fa-note-sticky"></i>
-                <p>${escapeHtml(acc.notes)}</p>
-            </div>
-            ` : ''}
-
+            <!-- Card Footer -->
             <div class="account-card-footer">
-                ${linksHtml}
+                <div class="footer-links-group">
+                    ${linksHtml || '<span></span>'}
+                </div>
                 
                 <div class="footer-actions-right">
-                    <button type="button" class="btn-share-pill" onclick="event.stopPropagation(); copyAllAccountData('${acc.id}', this)" title="نسخ كافة البيانات كاملة">
+                    <button type="button" class="btn-share-pill" onclick="event.stopPropagation(); copyAllAccountData('${acc.id}', this)" title="نسخ كافة بيانات الحساب كاملة">
                         <i class="fa-solid fa-copy"></i> <span>نسخ الكل</span>
                     </button>
-                    <button type="button" class="btn-share-pill" onclick="event.stopPropagation(); shareAccountData('${acc.id}', this)" title="مشاركة الحساب">
-                        <i class="fa-solid fa-share-nodes"></i> <span>مشاركة</span>
-                    </button>
-                    <button type="button" class="link-btn-text" onclick="event.stopPropagation(); showAccountDetails('${acc.id}')">
-                        <span>التفاصيل</span> <i class="fa-solid fa-chevron-left" style="font-size: 0.72rem;"></i>
+                    <button type="button" class="btn-details-pill" onclick="event.stopPropagation(); showAccountDetails('${acc.id}')" title="عرض تفاصيل الحساب">
+                        <span>التفاصيل</span> <i class="fa-solid fa-chevron-left"></i>
                     </button>
                 </div>
             </div>
@@ -2858,19 +2863,35 @@ function importEncryptedData(event) {
 // ==========================================
 // Helpers & Interactions
 // ==========================================
-function toggleCardPassword(id, actualPassword) {
+function toggleCardPassword(id) {
     const span = document.getElementById(`pwd-val-${id}`);
     const icon = document.getElementById(`eye-icon-${id}`);
-
     if (!span) return;
 
-    if (span.innerText === '••••••••••••') {
-        span.innerText = actualPassword;
-        if (icon) icon.className = 'fa-solid fa-eye-slash';
-    } else {
+    const acc = accountsData.find(a => a.id === id);
+    const actualPassword = acc ? (acc.password || '') : '';
+
+    if (span.getAttribute('data-revealed') === 'true') {
         span.innerText = '••••••••••••';
+        span.setAttribute('data-revealed', 'false');
         if (icon) icon.className = 'fa-solid fa-eye';
+    } else {
+        span.innerText = actualPassword;
+        span.setAttribute('data-revealed', 'true');
+        if (icon) icon.className = 'fa-solid fa-eye-slash';
     }
+}
+
+function copyAccountUsername(id, btnElement = null) {
+    const acc = accountsData.find(a => a.id === id);
+    if (!acc || !acc.username) return;
+    copyToClipboard(acc.username, btnElement);
+}
+
+function copyAccountPassword(id, btnElement = null) {
+    const acc = accountsData.find(a => a.id === id);
+    if (!acc || !acc.password) return;
+    copyToClipboard(acc.password, btnElement);
 }
 
 function copyToClipboard(text, btnElement = null) {
