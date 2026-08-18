@@ -1789,12 +1789,13 @@ function setupRealtimeSync() {
             })
             // 1. Instant 0ms WebSocket Broadcast from any connected device (Completely Silent in Background)
             .on('broadcast', { event: 'vault_sync' }, async (payload) => {
-                if (payload && payload.payload && payload.payload.deletedId) {
-                    addDeletedId(payload.payload.deletedId);
-                    accountsData = accountsData.filter(a => a.id !== payload.payload.deletedId);
+                const dId = (payload && payload.payload && payload.payload.deletedId) || (payload && payload.deletedId);
+                if (dId) {
+                    addDeletedId(dId);
+                    accountsData = accountsData.filter(a => a.id !== dId);
                 }
                 const changed = await loadUserVault();
-                if (changed || (payload && payload.payload && payload.payload.deletedId)) {
+                if (changed || dId) {
                     renderWorkspacesList();
                     renderAccounts();
                 }
