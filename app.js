@@ -3413,30 +3413,8 @@ function initPWA() {
         deferredPWAInstallPrompt = null;
         const installBtn = document.getElementById('pwa-install-btn');
         if (installBtn) installBtn.classList.add('hidden');
-        dismissPwaBanner();
         showToast('تم تثبيت تطبيق SafeVault بنجاح على جهازك! 📲🎉');
     });
-
-    // Smart mobile banner prompt
-    setTimeout(checkAndShowPwaBanner, 1800);
-}
-
-function checkAndShowPwaBanner() {
-    const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
-    const isMobile = window.innerWidth <= 768;
-    const isDismissed = sessionStorage.getItem('pwa_banner_dismissed') === 'true';
-
-    if (!isStandalone && isMobile && !isDismissed) {
-        const banner = document.getElementById('pwa-install-banner');
-        if (banner) banner.classList.remove('hidden');
-    }
-}
-
-function dismissPwaBanner() {
-    triggerHaptic('light');
-    const banner = document.getElementById('pwa-install-banner');
-    if (banner) banner.classList.add('hidden');
-    sessionStorage.setItem('pwa_banner_dismissed', 'true');
 }
 
 async function installPWAApp() {
@@ -3447,7 +3425,6 @@ async function installPWAApp() {
         if (outcome === 'accepted') {
             const installBtn = document.getElementById('pwa-install-btn');
             if (installBtn) installBtn.classList.add('hidden');
-            dismissPwaBanner();
             showToast('جاري تثبيت تطبيق SafeVault PRO... 📲✨');
         }
         deferredPWAInstallPrompt = null;
