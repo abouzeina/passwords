@@ -6,8 +6,8 @@
     <title>SafeVault PRO | خزانة كلمات المرور</title>
     
     <!-- High-Definition SVG Brand Favicon & Apple Touch Icon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%234338ca'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='128' fill='%23080b11'/%3E%3Cpath d='M256 64L96 128v144c0 110 68 214 160 240 92-26 160-130 160-240V128L256 64z' fill='url(%23g)'/%3E%3Cpath d='M256 192a48 48 0 00-48 48c0 18 10 33 24 41v75a24 24 0 0048 0v-75c14-8 24-23 24-41a48 48 0 00-48-48z' fill='%23ffffff'/%3E%3C/svg%3E">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%234338ca'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='128' fill='%23080b11'/%3E%3Cpath d='M256 64L96 128v144c0 110 68 214 160 240 92-26 160-130 160-240V128L256 64z' fill='url(%23g)'/%3E%3Cpath d='M256 192a48 48 0 00-48 48c0 18 10 33 24 41v75a24 24 0 0048 0v-75c14-8 24-23 24-41a48 48 0 00-48-48z' fill='%23ffffff'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%234f46e5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='140' fill='url(%23g)'/%3E%3Cpath d='M256 96L128 152v120c0 92 56 178 128 200 72-22 128-108 128-200V152L256 96z' fill='%23ffffff'/%3E%3Cpath d='M256 160a40 40 0 00-40 40c0 15 8 28 20 35v61a20 20 0 0040 0v-61c12-7 20-20 20-35a40 40 0 00-40-40z' fill='url(%23g)'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%234f46e5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='140' fill='url(%23g)'/%3E%3Cpath d='M256 96L128 152v120c0 92 56 178 128 200 72-22 128-108 128-200V152L256 96z' fill='%23ffffff'/%3E%3Cpath d='M256 160a40 40 0 00-40 40c0 15 8 28 20 35v61a20 20 0 0040 0v-61c12-7 20-20 20-35a40 40 0 00-40-40z' fill='url(%23g)'/%3E%3C/svg%3E">
     
     <!-- Critical Inline Splash Styles (Zero-Flicker Instant Render) -->
     <style>
@@ -24,17 +24,17 @@
             justify-content: center;
             font-family: 'Plus Jakarta Sans', 'Tajawal', sans-serif;
             color: #ffffff;
-            transition: opacity 0.3s ease, visibility 0.3s;
+            transition: opacity 0.2s ease, visibility 0.2s;
         }
         #app-splash.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
         .splash-content { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
         .splash-icon { width: 68px; height: 68px; border-radius: 20px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; box-shadow: 0 0 35px rgba(99, 102, 241, 0.45); }
         .splash-content h2 { font-size: 1.7rem; font-weight: 800; margin: 0; color: #f8fafc; letter-spacing: -0.5px; }
-        .splash-spinner { width: 30px; height: 30px; border: 3px solid rgba(99, 102, 241, 0.25); border-top-color: #6366f1; border-radius: 50%; animation: splashSpin 0.75s linear infinite; }
+        .splash-spinner { width: 28px; height: 28px; border: 3px solid rgba(99, 102, 241, 0.25); border-top-color: #6366f1; border-radius: 50%; animation: splashSpin 0.75s linear infinite; }
         @keyframes splashSpin { to { transform: rotate(360deg); } }
     </style>
 
-    <!-- Fast Theme Init Script to avoid FOUC -->
+    <!-- Fast Theme & Standalone Init Script -->
     <script>
         (function() {
             try {
@@ -43,6 +43,14 @@
                     savedTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
                 }
                 document.documentElement.setAttribute('data-theme', savedTheme);
+
+                // Prevent double splash when launched as installed PWA (Android/iOS already shows native splash)
+                var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+                if (isStandalone) {
+                    var s = document.createElement('style');
+                    s.innerHTML = '#app-splash { display: none !important; }';
+                    document.head.appendChild(s);
+                }
             } catch (e) {}
         })();
     </script>
