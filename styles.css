@@ -208,6 +208,8 @@ html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    overscroll-behavior-y: contain !important;
+    overscroll-behavior: contain !important;
 }
 
 html, body {
@@ -219,6 +221,8 @@ html, body {
     -webkit-overflow-scrolling: touch;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    overscroll-behavior-y: contain !important;
+    overscroll-behavior: contain !important;
 }
 
 body {

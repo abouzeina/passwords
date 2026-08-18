@@ -3131,7 +3131,10 @@ function initPullToRefresh() {
         currentY = e.touches[0].clientY;
         const diff = currentY - startY;
 
-        if (diff > 8 && window.scrollY <= 4) {
+        if (diff > 0 && window.scrollY <= 2) {
+            // Prevent native mobile browser's default reload circle
+            if (e.cancelable) e.preventDefault();
+
             const pullHeight = Math.min(diff * 0.45, 90);
             container.style.height = `${pullHeight}px`;
 
@@ -3149,7 +3152,7 @@ function initPullToRefresh() {
                 delete container.dataset.vibrated;
             }
         }
-    }, { passive: true });
+    }, { passive: false });
 
     window.addEventListener('touchend', async () => {
         if (!isDragging || isSyncing) return;
