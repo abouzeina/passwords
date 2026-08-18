@@ -1639,8 +1639,17 @@ async function saveAndSyncVault() {
             console.warn('Workspace sync warning:', wsErr);
         }
 
+        // Broadcast instantaneous change event to all connected devices (phones/tablets/laptops)
+        if (realtimeSubscription) {
+            realtimeSubscription.send({
+                type: 'broadcast',
+                event: 'vault_sync',
+                payload: { sender: currentUserEmail, timestamp: Date.now() }
+            }).catch(() => {});
+        }
+
         if (syncDot) syncDot.className = 'status-indicator-dot dot-online';
-        if (syncLabel) syncLabel.innerText = 'متزامن سحابياً';
+        if (syncLabel) syncLabel.innerText = 'متزامن لحظياً ⚡';
         return true;
     } catch (e) {
         console.error('Error during cloud sync:', e);
@@ -1678,13 +1687,31 @@ let syncListenersInitialized = false;
 
 function setupRealtimeSync() {
     if (!supabaseClient) return;
-    if (realtimeSubscription) supabaseClient.removeChannel(realtimeSubscription);
+    if (realtimeSubscription) {
+        try {
+            supabaseClient.removeChannel(realtimeSubscription);
+        } catch (e) {}
+        realtimeSubscription = null;
+    }
 
     supabaseClient.auth.getUser().then(({ data: { user } }) => {
         if (!user) return;
 
+        const channelName = 'vault_user_' + user.id;
         realtimeSubscription = supabaseClient
-            .channel('vault_items_realtime')
+            .channel(channelName, {
+                config: {
+                    broadcast: { self: false }
+                }
+            })
+            // 1. Instant 0ms WebSocket Broadcast from any connected device
+            .on('broadcast', { event: 'vault_sync' }, async () => {
+                await loadUserVault();
+                renderWorkspacesList();
+                renderAccounts();
+                showToast('⚡ تم تحديث الخزنة فوراً من جهاز آخر!');
+            })
+            // 2. Direct PostgreSQL Database CDC (Change Data Capture)
             .on(
                 'postgres_changes',
                 {
@@ -1697,19 +1724,27 @@ function setupRealtimeSync() {
                     await loadUserVault();
                     renderWorkspacesList();
                     renderAccounts();
-                    showToast('تم تحديث الخزنة تلقائياً من جهاز آخر! 🔄');
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                const syncDot = document.getElementById('header-sync-dot');
+                const syncLabel = document.getElementById('header-sync-label');
+                if (status === 'SUBSCRIBED') {
+                    if (syncDot) syncDot.className = 'status-indicator-dot dot-online';
+                    if (syncLabel) syncLabel.innerText = 'متزامن لحظياً ⚡';
+                }
+            });
     });
 
-    // Start 30-second continuous background sync loop
+    // Fast 5-second polling fallback so mobile is always 100% up-to-date
     if (backgroundSyncTimer) clearInterval(backgroundSyncTimer);
     backgroundSyncTimer = setInterval(async () => {
-        if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-            await saveAndSyncVault();
+        if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient && !document.hidden) {
+            await loadUserVault();
+            renderWorkspacesList();
+            renderAccounts();
         }
-    }, 30000);
+    }, 5000);
 
     // Initialize auto-sync event listeners once
     if (!syncListenersInitialized) {
@@ -1723,9 +1758,25 @@ function setupRealtimeSync() {
             }
         });
 
-        // Auto-sync when returning to the tab
+        // Auto-sync when returning to the tab or mobile unlock
         document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible' && currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
+                await loadUserVault();
+                renderWorkspacesList();
+                renderAccounts();
+            }
+        });
+
+        window.addEventListener('focus', async () => {
+            if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
+                await loadUserVault();
+                renderWorkspacesList();
+                renderAccounts();
+            }
+        });
+
+        window.addEventListener('pageshow', async () => {
+            if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
                 await loadUserVault();
                 renderWorkspacesList();
                 renderAccounts();
@@ -2628,10 +2679,19 @@ async function deleteAccount(id) {
             }
         }
 
-        saveToLocalStorage();
+        await saveToLocalStorage();
         renderWorkspacesList();
         renderAccounts();
         showToast('تم حذف الحساب بنجاح 🗑️');
+
+        // Broadcast deletion event immediately to all devices
+        if (realtimeSubscription) {
+            realtimeSubscription.send({
+                type: 'broadcast',
+                event: 'vault_sync',
+                payload: { sender: currentUserEmail, deletedId: id, timestamp: Date.now() }
+            }).catch(() => {});
+        }
     }
 }
 
