@@ -1751,6 +1751,7 @@ async function syncWithCloudNow() {
 }
 
 let syncListenersInitialized = false;
+let backgroundPulseTimer = null;
 
 function setupRealtimeSync() {
     if (!supabaseClient) return;
@@ -1810,12 +1811,23 @@ function setupRealtimeSync() {
             });
     });
 
+    // Silent background pulse every 3 seconds: Only updates DOM if data on server changed! (0 DOM flicker)
+    if (backgroundPulseTimer) clearInterval(backgroundPulseTimer);
+    backgroundPulseTimer = setInterval(async () => {
+        if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient && !document.hidden) {
+            const changed = await loadUserVault();
+            if (changed) {
+                renderWorkspacesList();
+                renderAccounts();
+            }
+        }
+    }, 3000);
+
     // Initialize auto-sync event listeners once
     if (!syncListenersInitialized) {
         syncListenersInitialized = true;
 
-        // Silent sync when internet reconnects
-        window.addEventListener('online', async () => {
+        const triggerSilentSync = async () => {
             if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
                 const changed = await loadUserVault();
                 if (changed) {
@@ -1823,38 +1835,21 @@ function setupRealtimeSync() {
                     renderAccounts();
                 }
             }
-        });
+        };
 
-        // Silent sync when returning to the tab or mobile unlock
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-                const changed = await loadUserVault();
-                if (changed) {
-                    renderWorkspacesList();
-                    renderAccounts();
-                }
-            }
+        window.addEventListener('online', triggerSilentSync);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') triggerSilentSync();
         });
-
-        window.addEventListener('focus', async () => {
-            if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-                const changed = await loadUserVault();
-                if (changed) {
-                    renderWorkspacesList();
-                    renderAccounts();
-                }
+        window.addEventListener('focus', triggerSilentSync);
+        window.addEventListener('pageshow', triggerSilentSync);
+        window.addEventListener('touchstart', () => {
+            // Debounced touch sync for mobile
+            if (!window._lastTouchSync || Date.now() - window._lastTouchSync > 4000) {
+                window._lastTouchSync = Date.now();
+                triggerSilentSync();
             }
-        });
-
-        window.addEventListener('pageshow', async () => {
-            if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-                const changed = await loadUserVault();
-                if (changed) {
-                    renderWorkspacesList();
-                    renderAccounts();
-                }
-            }
-        });
+        }, { passive: true });
     }
 }
 
