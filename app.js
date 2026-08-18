@@ -336,6 +336,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     activeVaultKey = await cryptoImportVaultKey(rawVaultKeyBytes);
                 }
 
+                // Validate Supabase Auth session so the user is never stuck in disconnected offline mode
+                if (supabaseClient) {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    if (!session || !session.user) {
+                        console.warn('Supabase auth session expired/missing. Prompting user to login.');
+                        clearActiveSession();
+                        handleLockVault();
+                        const loginEmailInput = document.getElementById('login-email');
+                        if (loginEmailInput) loginEmailInput.value = currentUserEmail;
+                        const authOverlay = document.getElementById('auth-overlay');
+                        if (authOverlay) authOverlay.classList.remove('hidden');
+                        hideSplash();
+                        return;
+                    }
+                }
+
                 await loadUserVault();
                 showAppDashboard();
                 hideSplash();
