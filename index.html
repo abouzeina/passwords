@@ -88,25 +88,24 @@
     <!-- Authentication & Landing Screen (Login / Register / Reset) -->
     <!-- ==================================================== -->
     <div id="auth-overlay" class="modal-overlay auth-backdrop hidden">
-        <!-- Floating Theme Switcher on Auth Screen -->
-        <div class="auth-theme-bar">
-            <button type="button" class="theme-toggle-btn" onclick="toggleTheme()" title="تبديل الثيم الداكن / الفاتح" aria-label="تبديل الثيم">
+        <div class="modal-card auth-card">
+            <!-- Sleek Corner Theme Toggle Button -->
+            <button type="button" class="auth-card-theme-btn" onclick="toggleTheme()" title="تبديل الثيم الداكن / الفاتح" aria-label="تبديل الثيم">
                 <i class="fa-solid fa-moon theme-moon-icon"></i>
                 <i class="fa-solid fa-sun theme-sun-icon"></i>
-                <span class="theme-text">المظهر</span>
             </button>
-        </div>
 
-        <div class="modal-card auth-card">
             <div class="auth-header-logo">
                 <div class="auth-icon-wrapper">
                     <div class="auth-icon">
                         <i class="fa-solid fa-shield-halved"></i>
                     </div>
-                    <span class="auth-icon-glow"></span>
                 </div>
-                <h2>SafeVault <sup>PRO</sup></h2>
-                <p id="auth-subtitle">خزنة كلمات مرور سحابية مشفرة بتقنية <bdi dir="ltr">(Zero-Knowledge)</bdi></p>
+                <div class="auth-brand-row">
+                    <h2>SafeVault</h2>
+                    <span class="auth-pro-badge">PRO</span>
+                </div>
+                <p id="auth-subtitle">خزانة مشفرة بأمان فائق Zero-Knowledge</p>
             </div>
 
             <!-- Auth Mode Switch Tabs -->

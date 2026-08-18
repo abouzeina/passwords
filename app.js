@@ -3243,7 +3243,7 @@ function initDrawerSwipeDismiss() {
 // ==========================================
 const BIOMETRIC_CRED_KEY = 'safevault_biometric_registered';
 
-async function checkBiometricAvailability() {
+async function checkBiometricAvailability(autoPrompt = true) {
     try {
         const isAvailable = !!(window.PublicKeyCredential && 
             await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
@@ -3258,6 +3258,15 @@ async function checkBiometricAvailability() {
         if (bioLoginBox) {
             if (isAvailable && isRegistered) {
                 bioLoginBox.classList.remove('hidden');
+                // Auto trigger biometric unlock on startup if on login screen
+                if (autoPrompt) {
+                    const authOverlay = document.getElementById('auth-overlay');
+                    if (authOverlay && !authOverlay.classList.contains('hidden')) {
+                        setTimeout(() => {
+                            handleBiometricLogin(true);
+                        }, 500);
+                    }
+                }
             } else {
                 bioLoginBox.classList.add('hidden');
             }
@@ -3289,7 +3298,7 @@ async function toggleBiometricSetup() {
         localStorage.removeItem('safevault_bio_email');
         localStorage.removeItem('safevault_bio_pwd');
         showToast('تم إلغاء تفعيل الدخول بالبصمة');
-        checkBiometricAvailability();
+        checkBiometricAvailability(false);
         return;
     }
 
@@ -3327,7 +3336,7 @@ async function toggleBiometricSetup() {
             if (legacyMasterKey) localStorage.setItem('safevault_bio_pwd', legacyMasterKey);
             triggerHaptic('success');
             showToast('تم تفعيل الدخول بالبصمة / Face ID بنجاح! 🔒✨');
-            checkBiometricAvailability();
+            checkBiometricAvailability(false);
         }
     } catch (err) {
         console.warn('Biometric setup canceled or failed:', err);
@@ -3335,13 +3344,13 @@ async function toggleBiometricSetup() {
     }
 }
 
-async function handleBiometricLogin() {
-    triggerHaptic('medium');
+async function handleBiometricLogin(isAuto = false) {
+    if (!isAuto) triggerHaptic('medium');
     const savedEmail = localStorage.getItem('safevault_bio_email');
     const savedKey = localStorage.getItem('safevault_bio_pwd');
 
     if (!savedEmail || !savedKey) {
-        showToast('يرجى تسجيل الدخول أولاً وتفعيل البصمة من الملف الشخصي');
+        if (!isAuto) showToast('يرجى تسجيل الدخول أولاً وتفعيل البصمة من الملف الشخصي');
         return;
     }
 
@@ -3362,7 +3371,7 @@ async function handleBiometricLogin() {
             triggerHaptic('success');
             showToast('تم التحقق من البصمة بنجاح! 🔓✨');
             
-            // Auto login with saved credentials
+            // Auto fill & login with saved credentials
             const emailInput = document.getElementById('login-email');
             const pwdInput = document.getElementById('login-password');
             if (emailInput) emailInput.value = savedEmail;
@@ -3377,8 +3386,10 @@ async function handleBiometricLogin() {
         }
     } catch (err) {
         console.warn('Biometric login canceled or failed:', err);
-        triggerHaptic('warning');
-        showToast('فشل التحقق من البصمة أو تم إلغاؤها');
+        if (!isAuto) {
+            triggerHaptic('warning');
+            showToast('تم إلغاء التحقق من البصمة');
+        }
     }
 }
 
@@ -3522,6 +3533,9 @@ function initModalBackdropDismiss() {
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('mousedown', (e) => {
             if (e.target === overlay) {
+                // NEVER dismiss the mandatory auth login overlay
+                if (overlay.id === 'auth-overlay') return;
+
                 overlay.classList.add('hidden');
                 if (overlay.id === 'account-details-modal') {
                     activeDetailsAccount = null;
@@ -3542,4 +3556,4 @@ initKeyboardShortcuts();
 initModalBackdropDismiss();
 initPullToRefresh();
 initDrawerSwipeDismiss();
-checkBiometricAvailability();
+checkBiometricAvailability(true);
