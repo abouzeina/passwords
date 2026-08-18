@@ -370,10 +370,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 function hideSplash() {
     const splash = document.getElementById('app-splash');
     if (splash) {
-        splash.classList.add('fade-out');
         setTimeout(() => {
-            splash.style.display = 'none';
-        }, 350);
+            splash.classList.add('fade-out');
+            setTimeout(() => {
+                splash.style.display = 'none';
+            }, 300);
+        }, 600);
     }
 }
 

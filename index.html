@@ -34,7 +34,7 @@
         @keyframes splashSpin { to { transform: rotate(360deg); } }
     </style>
 
-    <!-- Fast Theme & Standalone Init Script -->
+    <!-- Fast Theme Init Script to avoid FOUC -->
     <script>
         (function() {
             try {
@@ -43,14 +43,6 @@
                     savedTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
                 }
                 document.documentElement.setAttribute('data-theme', savedTheme);
-
-                // Prevent double splash when launched as installed PWA (Android/iOS already shows native splash)
-                var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
-                if (isStandalone) {
-                    var s = document.createElement('style');
-                    s.innerHTML = '#app-splash { display: none !important; }';
-                    document.head.appendChild(s);
-                }
             } catch (e) {}
         })();
     </script>
@@ -67,15 +59,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <!-- Supabase JS Client for PostgreSQL Auth & Realtime Sync -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- PWA & Mobile Web App Manifest -->
+    <!-- PWA & Mobile Web App Manifest (100% Native Standalone Experience) -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="#080b11">
+    <meta name="msapplication-navbutton-color" content="#080b11">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SafeVault">
+    <meta name="apple-mobile-web-app-title" content="SafeVault PRO">
+    <meta name="application-name" content="SafeVault PRO">
     
-    <link rel="stylesheet" href="styles.css?v=4.0.0">
+    <link rel="stylesheet" href="styles.css?v=4.1.0">
 </head>
 <body>
 

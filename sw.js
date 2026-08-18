@@ -1,5 +1,5 @@
 // SafeVault PRO - High Performance Offline Service Worker
-const CACHE_NAME = 'safevault-cache-v3.3.0';
+const CACHE_NAME = 'safevault-cache-v4.1.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
