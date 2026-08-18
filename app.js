@@ -1438,11 +1438,13 @@ async function deleteWorkspace(wsId) {
 async function loadUserVault() {
     await loadFromLocalStorage();
 
-    if (!supabaseClient || (!activeVaultKey && !legacyMasterKey)) return;
+    if (!supabaseClient || (!activeVaultKey && !legacyMasterKey)) return false;
 
     try {
         const { data: { user } } = await supabaseClient.auth.getUser();
-        if (!user) return;
+        if (!user) return false;
+
+        const prevDataJson = JSON.stringify(accountsData);
 
         // Restore custom workspaces from user metadata if available
         if (user.user_metadata && Array.isArray(user.user_metadata.workspaces) && user.user_metadata.workspaces.length > 0) {
@@ -1459,7 +1461,7 @@ async function loadUserVault() {
 
         if (error) {
             console.warn('Database select error:', error);
-            return;
+            return false;
         }
 
         if (data && data.length > 0) {
@@ -1538,12 +1540,18 @@ async function loadUserVault() {
             if (needReSync) {
                 await saveAndSyncVault();
             }
+
+            const newDataJson = JSON.stringify(accountsData);
+            return prevDataJson !== newDataJson;
         } else if (accountsData.length > 0) {
             // Local accounts exist but cloud has none yet -> upload them
             await saveAndSyncVault();
+            return false;
         }
+        return false;
     } catch (e) {
         console.error('Vault load exception:', e);
+        return false;
     }
 }
 
@@ -1593,8 +1601,6 @@ async function saveAndSyncVault() {
 
     const syncDot = document.getElementById('header-sync-dot');
     const syncLabel = document.getElementById('header-sync-label');
-    if (syncDot) syncDot.className = 'status-indicator-dot dot-syncing';
-    if (syncLabel) syncLabel.innerText = 'جاري المزامنة...';
 
     try {
         const { data: { user } } = await supabaseClient.auth.getUser();
@@ -1655,7 +1661,7 @@ async function saveAndSyncVault() {
             console.warn('Workspace sync warning:', wsErr);
         }
 
-        // Broadcast instantaneous change event to all connected devices (phones/tablets/laptops)
+        // Broadcast instantaneous change event to all connected devices silently
         if (realtimeSubscription) {
             realtimeSubscription.send({
                 type: 'broadcast',
@@ -1685,20 +1691,20 @@ async function syncWithCloudNow() {
     if (syncDot) syncDot.className = 'status-indicator-dot dot-syncing';
     if (syncLabel) syncLabel.innerText = 'جاري المزامنة...';
 
-    showToast('جاري مزامنة ورفع البيانات... 🔄');
     try {
         await saveAndSyncVault();
-        await loadUserVault();
-        renderWorkspacesList();
-        renderAccounts();
-        showToast('تمت المزامنة وحفظ البيانات سحابياً بنجاح! ☁️✨');
+        const changed = await loadUserVault();
+        if (changed) {
+            renderWorkspacesList();
+            renderAccounts();
+        }
+        showToast('تمت المزامنة سحابياً بنجاح! ☁️✨');
     } catch (e) {
         console.error('Manual sync failed:', e);
         showToast('تعذر إتمام المزامنة السحابية ⚠️');
     }
 }
 
-let backgroundSyncTimer = null;
 let syncListenersInitialized = false;
 
 function setupRealtimeSync() {
@@ -1720,12 +1726,13 @@ function setupRealtimeSync() {
                     broadcast: { self: false }
                 }
             })
-            // 1. Instant 0ms WebSocket Broadcast from any connected device
+            // 1. Instant 0ms WebSocket Broadcast from any connected device (Completely Silent in Background)
             .on('broadcast', { event: 'vault_sync' }, async () => {
-                await loadUserVault();
-                renderWorkspacesList();
-                renderAccounts();
-                showToast('⚡ تم تحديث الخزنة فوراً من جهاز آخر!');
+                const changed = await loadUserVault();
+                if (changed) {
+                    renderWorkspacesList();
+                    renderAccounts();
+                }
             })
             // 2. Direct PostgreSQL Database CDC (Change Data Capture)
             .on(
@@ -1737,9 +1744,11 @@ function setupRealtimeSync() {
                     filter: `user_id=eq.${user.id}`
                 },
                 async () => {
-                    await loadUserVault();
-                    renderWorkspacesList();
-                    renderAccounts();
+                    const changed = await loadUserVault();
+                    if (changed) {
+                        renderWorkspacesList();
+                        renderAccounts();
+                    }
                 }
             )
             .subscribe((status) => {
@@ -1752,50 +1761,49 @@ function setupRealtimeSync() {
             });
     });
 
-    // Fast 5-second polling fallback so mobile is always 100% up-to-date
-    if (backgroundSyncTimer) clearInterval(backgroundSyncTimer);
-    backgroundSyncTimer = setInterval(async () => {
-        if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient && !document.hidden) {
-            await loadUserVault();
-            renderWorkspacesList();
-            renderAccounts();
-        }
-    }, 5000);
-
     // Initialize auto-sync event listeners once
     if (!syncListenersInitialized) {
         syncListenersInitialized = true;
 
-        // Auto-sync when internet reconnects
+        // Silent sync when internet reconnects
         window.addEventListener('online', async () => {
             if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-                showToast('تم استعادة الاتصال بالإنترنت، جاري المزامنة... 🌐');
-                await syncWithCloudNow();
+                const changed = await loadUserVault();
+                if (changed) {
+                    renderWorkspacesList();
+                    renderAccounts();
+                }
             }
         });
 
-        // Auto-sync when returning to the tab or mobile unlock
+        // Silent sync when returning to the tab or mobile unlock
         document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible' && currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-                await loadUserVault();
-                renderWorkspacesList();
-                renderAccounts();
+                const changed = await loadUserVault();
+                if (changed) {
+                    renderWorkspacesList();
+                    renderAccounts();
+                }
             }
         });
 
         window.addEventListener('focus', async () => {
             if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-                await loadUserVault();
-                renderWorkspacesList();
-                renderAccounts();
+                const changed = await loadUserVault();
+                if (changed) {
+                    renderWorkspacesList();
+                    renderAccounts();
+                }
             }
         });
 
         window.addEventListener('pageshow', async () => {
             if (currentUserEmail && (activeVaultKey || legacyMasterKey) && supabaseClient) {
-                await loadUserVault();
-                renderWorkspacesList();
-                renderAccounts();
+                const changed = await loadUserVault();
+                if (changed) {
+                    renderWorkspacesList();
+                    renderAccounts();
+                }
             }
         });
     }
