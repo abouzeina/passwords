@@ -1,0 +1,56 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String      @id @default(uuid())
+  email            String      @unique
+  passwordHash     String
+  fullName         String?
+  phone            String?
+  vaultSalt        String?
+  wrappedVaultKey  String?
+  workspaces       Workspace[]
+  vaultItems       VaultItem[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model Workspace {
+  id          String      @id @default(uuid())
+  name        String
+  icon        String      @default("folder")
+  desc        String?
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vaultItems  VaultItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+}
+
+model VaultItem {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  name        String
+  username    String
+  password    String
+  urls        String[]    @default([])
+  category    String      @default("أخرى")
+  notes       String?
+  isFavorite  Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([workspaceId])
+}
