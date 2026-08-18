@@ -1475,6 +1475,11 @@ async function loadUserVault() {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (!user) return false;
 
+        // Merge cloud tombstone deleted IDs with local tombstone
+        if (user.user_metadata && Array.isArray(user.user_metadata.deleted_ids)) {
+            user.user_metadata.deleted_ids.forEach(dId => addDeletedId(dId));
+        }
+
         const prevDataJson = JSON.stringify(accountsData);
         const deletedIds = getDeletedIds();
 
@@ -1620,7 +1625,9 @@ async function loadFromLocalStorage() {
         try {
             const dec = await decryptText(saved);
             if (dec) {
-                accountsData = JSON.parse(dec);
+                const parsed = JSON.parse(dec);
+                const deletedIds = getDeletedIds();
+                accountsData = Array.isArray(parsed) ? parsed.filter(a => a && a.id && !deletedIds.has(a.id)) : [];
             }
         } catch (e) {
             console.warn('Error loading local vault:', e);
@@ -1635,7 +1642,9 @@ async function saveToLocalStorage() {
 
     localStorage.setItem(wsKey, JSON.stringify(userWorkspaces));
 
-    const jsonStr = JSON.stringify(accountsData);
+    const deletedIds = getDeletedIds();
+    const cleanAccounts = accountsData.filter(a => a && a.id && !deletedIds.has(a.id));
+    const jsonStr = JSON.stringify(cleanAccounts);
     const encrypted = await encryptText(jsonStr);
     localStorage.setItem(key, encrypted);
 }
@@ -1654,6 +1663,9 @@ async function saveAndSyncVault() {
             if (syncLabel) syncLabel.innerText = 'حفظ محلي';
             return;
         }
+
+        const deletedIds = getDeletedIds();
+        accountsData = accountsData.filter(a => a && a.id && !deletedIds.has(a.id));
 
         // Ensure all accounts have a valid UUID
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1697,13 +1709,16 @@ async function saveAndSyncVault() {
             }
         }
 
-        // Sync workspaces to Supabase Auth metadata
+        // Sync workspaces and deleted_ids to Supabase Auth metadata
         try {
             await supabaseClient.auth.updateUser({
-                data: { workspaces: userWorkspaces }
+                data: {
+                    workspaces: userWorkspaces,
+                    deleted_ids: Array.from(deletedIds)
+                }
             });
         } catch (wsErr) {
-            console.warn('Workspace sync warning:', wsErr);
+            console.warn('Metadata sync warning:', wsErr);
         }
 
         // Broadcast instantaneous change event to all connected devices silently
@@ -2745,11 +2760,14 @@ async function deleteAccount(id) {
 
         if (supabaseClient) {
             try {
-                const { data: { user } } = await supabaseClient.auth.getUser();
-                if (user) {
-                    await supabaseClient.from('vault_items').delete().match({ id: id, user_id: user.id });
-                } else {
-                    await supabaseClient.from('vault_items').delete().eq('id', id);
+                const currentDeleted = Array.from(getDeletedIds());
+                await supabaseClient.auth.updateUser({
+                    data: { deleted_ids: currentDeleted }
+                }).catch(() => {});
+
+                const { error: delErr } = await supabaseClient.from('vault_items').delete().eq('id', id);
+                if (delErr) {
+                    console.warn('Database deletion error:', delErr);
                 }
             } catch (e) {
                 console.warn('Error deleting item from database:', e);
