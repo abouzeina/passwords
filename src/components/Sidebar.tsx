@@ -19,8 +19,6 @@ import {
   RotateCw,
   Copy,
   Check,
-  ShieldAlert,
-  Sliders,
 } from 'lucide-react';
 import { VaultItemData } from './AccountCard';
 
@@ -131,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const favCount = items.filter((i) => i.isFavorite).length;
 
   return (
-    <aside className="w-full lg:w-84 flex-shrink-0 flex flex-col gap-5">
+    <aside className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-5">
       {/* Workspaces Card */}
       <div className="glass-card rounded-2xl p-5 flex flex-col gap-3.5">
         <div className="flex items-center justify-between">
@@ -200,13 +198,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
             <h3 className="font-extrabold text-base text-slate-100">فحص أمان الخزنة</h3>
           </div>
-          <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border ${
-            secStats.healthPercent >= 80
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-              : secStats.healthPercent >= 50
-              ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-              : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
-          }`}>
+          <span
+            className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border ${
+              secStats.healthPercent >= 80
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                : secStats.healthPercent >= 50
+                ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+            }`}
+          >
             {secStats.healthPercent}% آمن
           </span>
         </div>
