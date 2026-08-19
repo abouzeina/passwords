@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SafeVault PRO - خزانة كلمات المرور السحابية الفائقة',
+  title: 'SafeVault PRO | خزانة كلمات المرور السحابية الفائقة',
   description: 'نظام إدارة وحفظ كلمات المرور السحابي فائق الأمان بتقنيات Next.js و PostgreSQL',
   manifest: '/manifest.json',
 };
@@ -21,8 +21,12 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap"
           rel="stylesheet"
         />
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        />
       </head>
-      <body className="min-h-screen antialiased selection:bg-blue-500 selection:text-white">
+      <body className="min-h-screen antialiased selection:bg-indigo-500 selection:text-white">
         {children}
       </body>
     </html>
