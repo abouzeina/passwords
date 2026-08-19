@@ -9,6 +9,7 @@ import { AccountCard, VaultItemData } from '@/components/AccountCard';
 import { AccountModal } from '@/components/AccountModal';
 import { AccountDetailsModal } from '@/components/AccountDetailsModal';
 import { WorkspaceModal } from '@/components/WorkspaceModal';
+import { ImportModal } from '@/components/ImportModal';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import {
   Shield,
@@ -19,6 +20,8 @@ import {
   Loader2,
   FolderOpen,
   CheckCircle2,
+  Upload,
+  Sparkles,
 } from 'lucide-react';
 
 const fetcher = (url: string) =>
@@ -30,7 +33,6 @@ const fetcher = (url: string) =>
 export default function DashboardPage() {
   const router = useRouter();
 
-  // SWR Data Fetching with 4-second refreshInterval for multi-device realtime updates
   const { data: userData, error: userError } = useSWR('/api/auth/me', fetcher);
   const {
     data: vaultData,
@@ -52,13 +54,14 @@ export default function DashboardPage() {
   const [editingItem, setEditingItem] = useState<VaultItemData | null>(null);
   const [detailsItem, setDetailsItem] = useState<VaultItemData | null>(null);
   const [isWsModalOpen, setIsWsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState('');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 3000);
+    setTimeout(() => setToastMessage(''), 3500);
   };
 
   useEffect(() => {
@@ -113,7 +116,6 @@ export default function DashboardPage() {
   // Save/Edit Account
   const handleSaveAccount = async (payload: Partial<VaultItemData>) => {
     if (payload.id) {
-      // Edit
       const res = await fetch(`/api/vault/${payload.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -124,7 +126,6 @@ export default function DashboardPage() {
         showToast('تم تحديث بيانات الحساب بنجاح 🔒');
       }
     } else {
-      // Create
       const res = await fetch('/api/vault', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,7 +143,6 @@ export default function DashboardPage() {
     const confirmed = window.confirm(`هل أنت متأكد من رغبتك في حذف "${name}" نهائياً من السيرفر؟`);
     if (!confirmed) return;
 
-    // 1. Optimistically update local UI immediately
     mutateVault(
       (current: any) => ({
         ...current,
@@ -153,13 +153,12 @@ export default function DashboardPage() {
 
     showToast('تم حذف الحساب بنجاح 🗑️');
 
-    // 2. Execute deletion on database
     try {
       const res = await fetch(`/api/vault/${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
-        mutateVault(); // Rollback if server error
+        mutateVault();
       }
     } catch (e) {
       mutateVault();
@@ -204,7 +203,7 @@ export default function DashboardPage() {
   const activeWsObj = workspaces.find((w: any) => w.id === activeWorkspaceId);
 
   return (
-    <div className="min-h-screen bg-vault-bg flex flex-col pb-20 lg:pb-6">
+    <div className="min-h-screen bg-vault-bg flex flex-col pb-24 lg:pb-8">
       {/* Top Header */}
       <Header
         user={userData?.user}
@@ -214,12 +213,13 @@ export default function DashboardPage() {
           setEditingItem(null);
           setIsAddModalOpen(true);
         }}
+        onOpenImportModal={() => setIsImportModalOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
 
       {/* Main Content Body */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 items-start">
         {/* Sidebar */}
         <Sidebar
           workspaces={workspaces}
@@ -230,29 +230,30 @@ export default function DashboardPage() {
           totalCount={items.length}
           favCount={items.filter((i) => i.isFavorite).length}
           onOpenCreateWorkspace={() => setIsWsModalOpen(true)}
+          onOpenImportModal={() => setIsImportModalOpen(true)}
         />
 
         {/* Center Main Dashboard Cards */}
-        <main className="flex-1 w-full flex flex-col gap-5">
+        <main className="flex-1 w-full flex flex-col gap-6">
           {/* Active Workspace Banner */}
-          <div className="glass-panel rounded-2xl p-5 border border-slate-800 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+          <div className="glass-panel rounded-3xl p-6 border border-slate-800 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold flex-shrink-0 shadow-glow">
                 {activeWorkspaceId === 'ALL' ? (
-                  <Layers className="w-6 h-6" />
+                  <Layers className="w-7 h-7" />
                 ) : (
-                  <Folder className="w-6 h-6" />
+                  <Folder className="w-7 h-7" />
                 )}
               </div>
               <div>
-                <h2 className="font-extrabold text-lg text-slate-100">
+                <h2 className="font-black text-xl md:text-2xl text-white">
                   {activeWorkspaceId === 'ALL'
                     ? 'جميع الحسابات (كل المساحات)'
                     : activeWsObj?.name || 'مساحة العمل'}
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs md:text-sm text-slate-300 font-semibold mt-1">
                   {activeWorkspaceId === 'ALL'
-                    ? 'عرض وإدارة جميع كلمات مرورك وحساباتك المسجلة عبر قاعدة البيانات السحابية.'
+                    ? 'إدارة جميع كلمات مرورك وحساباتك المسجلة عبر قاعدة البيانات السحابية.'
                     : activeWsObj?.desc || 'مساحة عمل مخصصة لتنظيم الحسابات.'}
                 </p>
               </div>
@@ -264,44 +265,56 @@ export default function DashboardPage() {
                 setEditingItem(null);
                 setIsAddModalOpen(true);
               }}
-              className="hidden sm:inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-glow transition active:scale-95 flex-shrink-0"
+              className="hidden sm:inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-extrabold px-5 py-3 rounded-2xl shadow-glow transition active:scale-95 flex-shrink-0"
             >
-              <PlusCircle className="w-4 h-4" />
+              <PlusCircle className="w-5 h-5" />
               <span>إضافة حساب</span>
             </button>
           </div>
 
           {/* Accounts Grid */}
           {!vaultData && !vaultError ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-              <p className="text-xs text-slate-400 font-semibold">جاري جلب بيانات الخزنة...</p>
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+              <p className="text-sm md:text-base text-slate-300 font-bold">جاري جلب بيانات الخزنة السحابية...</p>
             </div>
           ) : filteredItems.length === 0 ? (
-            <div className="glass-card rounded-3xl p-12 flex flex-col items-center justify-center text-center gap-4 border border-dashed border-slate-800">
-              <div className="w-16 h-16 rounded-3xl bg-slate-900 text-slate-500 flex items-center justify-center">
-                <FolderOpen className="w-8 h-8" />
+            <div className="glass-card rounded-3xl p-8 md:p-14 flex flex-col items-center justify-center text-center gap-6 border border-slate-800">
+              <div className="w-20 h-20 rounded-3xl bg-blue-600/15 text-blue-400 flex items-center justify-center shadow-glow">
+                <FolderOpen className="w-10 h-10" />
               </div>
-              <div>
-                <h3 className="font-bold text-base text-slate-200">لا توجد حسابات مسجلة هنا</h3>
-                <p className="text-xs text-slate-400 max-w-sm mt-1">
-                  لم تقم بإضافة حسابات بعد في هذا التصنيف أو مساحة العمل. ابدأ بإضافة حسابك الأول!
+              <div className="flex flex-col gap-2">
+                <h3 className="font-black text-xl md:text-2xl text-white">لا توجد حسابات مسجلة في السحابة حالياً</h3>
+                <p className="text-sm md:text-base text-slate-300 max-w-md font-medium leading-relaxed">
+                  إذا كنت قد سجلت حسابات مسبقاً على هذا المتصفح، يمكنك استيرادها فوراً بنقرة واحدة!
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingItem(null);
-                  setIsAddModalOpen(true);
-                }}
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-emerald-glow transition active:scale-95"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>إضافة أول حساب الآن</span>
-              </button>
+
+              <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-md">
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="flex-1 min-w-[200px] inline-flex items-center justify-center gap-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm md:text-base font-extrabold px-6 py-3.5 rounded-2xl shadow-glow transition active:scale-95"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span>استيراد الحسابات القديمة</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingItem(null);
+                    setIsAddModalOpen(true);
+                  }}
+                  className="flex-1 min-w-[200px] inline-flex items-center justify-center gap-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-sm md:text-base font-extrabold px-6 py-3.5 rounded-2xl shadow-emerald-glow transition active:scale-95"
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  <span>إضافة أول حساب جديد</span>
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {filteredItems.map((item) => (
                 <AccountCard
                   key={item.id}
@@ -354,6 +367,16 @@ export default function DashboardPage() {
         onSave={handleSaveWorkspace}
       />
 
+      {/* Bulk Import / Migration Modal */}
+      <ImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={(count) => {
+          mutateVault();
+          showToast(`تم استيراد ${count} حساب بنجاح إلى الخزنة السحابية! 🎉`);
+        }}
+      />
+
       {/* Mobile Floating Bottom Navigation */}
       <MobileBottomNav
         onOpenAddModal={() => {
@@ -374,8 +397,8 @@ export default function DashboardPage() {
 
       {/* Floating Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-slate-100 border border-slate-700 px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs font-semibold animate-in slide-in-from-bottom-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-slate-100 border border-slate-700 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-sm font-bold animate-in slide-in-from-bottom-2">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}

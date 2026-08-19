@@ -13,7 +13,6 @@ import {
   Trash2,
   Folder,
   FileText,
-  Share2,
   Eye,
   EyeOff,
 } from 'lucide-react';
@@ -67,24 +66,24 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in">
-      <div className="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-700/80 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+      <div className="glass-panel w-full max-w-lg rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-700/80 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-start justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between pb-5 border-b border-slate-800">
+          <div className="flex items-center gap-3.5">
             <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white shadow-lg"
+              className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-white shadow-xl"
               style={{ backgroundColor: brand.color }}
             >
-              <Key className="w-6 h-6" />
+              <Key className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-slate-100">{item.name}</h3>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-md border border-slate-700">
+              <h3 className="font-extrabold text-xl md:text-2xl text-white">{item.name}</h3>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <span className="text-xs bg-slate-800 text-slate-200 px-3 py-1 rounded-lg border border-slate-700 font-bold">
                   {item.workspace?.name || 'الخزنة الشخصية'}
                 </span>
-                <span className="text-xs bg-blue-500/10 text-blue-400 px-2.5 py-0.5 rounded-md border border-blue-500/20">
+                <span className="text-xs bg-blue-500/15 text-blue-300 font-bold px-3 py-1 rounded-lg border border-blue-500/30">
                   {item.category}
                 </span>
               </div>
@@ -93,129 +92,113 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition"
+            className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Details Content */}
+        {/* Credentials Details */}
         <div className="flex flex-col gap-4 mt-5">
-          {/* Username Field */}
-          <div className="p-3.5 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <User className="w-4 h-4 text-slate-400" />
-              <div>
-                <p className="text-[11px] font-semibold text-slate-400">اسم المستخدم / الإيميل</p>
-                <p className="text-sm font-semibold text-slate-100 select-all">{item.username}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleCopyUsername}
-              className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition"
-            >
-              {copiedUser ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            </button>
-          </div>
-
-          {/* Password Field */}
-          <div className="p-3.5 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Key className="w-4 h-4 text-slate-400" />
-              <div>
-                <p className="text-[11px] font-semibold text-slate-400">كلمة المرور</p>
-                <p className="text-sm font-mono text-slate-100 tracking-wider select-all">
-                  {showPassword ? item.password : '••••••••••••'}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
+          {/* Username */}
+          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+            <div className="flex items-center justify-between mb-1 text-xs text-slate-400 font-bold">
+              <span>اسم المستخدم / البريد</span>
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition"
+                onClick={handleCopyUsername}
+                className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-bold text-xs"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyPassword}
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition"
-              >
-                {copiedPass ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copiedUser ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedUser ? 'تم النسخ' : 'نسخ'}</span>
               </button>
             </div>
+            <p className="text-base md:text-lg font-bold text-white select-all">{item.username}</p>
           </div>
 
-          {/* URLs list */}
-          {item.urls && item.urls.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold text-slate-400">الروابط المسجلة:</p>
-              {item.urls.map((u, i) => (
-                <div
-                  key={i}
-                  className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center justify-between gap-2"
+          {/* Password */}
+          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+            <div className="flex items-center justify-between mb-1 text-xs text-slate-400 font-bold">
+              <span>كلمة المرور</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-slate-400 hover:text-white flex items-center gap-1 font-bold text-xs"
                 >
-                  <span className="text-xs font-mono text-slate-300 truncate select-all">{u}</span>
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <span>{showPassword ? 'إخفاء' : 'إظهار'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyPassword}
+                  className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-bold text-xs"
+                >
+                  {copiedPass ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedPass ? 'تم النسخ' : 'نسخ'}</span>
+                </button>
+              </div>
+            </div>
+            <p className="text-base md:text-lg font-mono font-bold text-white select-all">
+              {showPassword ? item.password : '••••••••••••••••'}
+            </p>
+          </div>
+
+          {/* URLs */}
+          {item.urls && item.urls.length > 0 && (
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+              <span className="block text-xs text-slate-400 font-bold mb-2">الروابط المسجلة</span>
+              <div className="flex flex-col gap-2">
+                {item.urls.map((u, i) => (
                   <a
+                    key={i}
                     href={u.startsWith('http') ? u : `https://${u}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 flex-shrink-0"
+                    className="inline-flex items-center justify-between text-xs md:text-sm font-semibold text-blue-400 hover:text-blue-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 transition"
                   >
-                    <span>فتح</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span className="truncate max-w-[280px]">{u}</span>
+                    <ExternalLink className="w-4 h-4 flex-shrink-0" />
                   </a>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
           {/* Notes */}
           {item.notes && (
-            <div className="p-3.5 bg-slate-900/60 border border-slate-800 rounded-2xl flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-                <FileText className="w-3.5 h-3.5" />
-                <span>الملاحظات:</span>
-              </div>
-              <p className="text-xs text-slate-200 whitespace-pre-wrap">{item.notes}</p>
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+              <span className="block text-xs text-slate-400 font-bold mb-1">الملاحظات</span>
+              <p className="text-sm font-medium text-slate-200 whitespace-pre-wrap">{item.notes}</p>
             </div>
           )}
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={handleCopyAll}
-              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition"
-            >
-              {copiedAll ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              <span>نسخ الكود المنسق</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onEdit(item);
-              }}
-              className="w-10 h-10 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl flex items-center justify-center transition"
-              title="تعديل"
-            >
-              <Edit2 className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onDelete(item.id, item.name);
-              }}
-              className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl flex items-center justify-center transition"
-              title="حذف"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5 pt-5 border-t border-slate-800 mt-5">
+          <button
+            type="button"
+            onClick={handleCopyAll}
+            className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition"
+          >
+            {copiedAll ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            <span>نسخ الكل</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onEdit(item)}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition"
+          >
+            <Edit2 className="w-4 h-4" />
+            <span>تعديل</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(item.id, item.name)}
+            className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold px-4 py-3 rounded-xl text-sm flex items-center justify-center transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
